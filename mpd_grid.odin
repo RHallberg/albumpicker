@@ -3,11 +3,12 @@ package mpd_grid
 import     "core:fmt"
 import mpd "mpd"
 import rl  "vendor:raylib"
+import db "musicdb"
 import "core:strings"
 
-GRID_ROWS :: 5
+GRID_ROWS :: 4
 GRID_COLS :: 5
-FONT_SIZE :: 20
+FONT_SIZE :: 16
 
 Window :: struct {
   name:          cstring,
@@ -17,24 +18,18 @@ Window :: struct {
   control_flags: rl.ConfigFlags,
 }
 
+Gui_data :: struct {
+  offset: int,
+  uris: ^[]string,
+  albums: ^db.Album_Map,
+}
+
 Box :: struct {
   x : i32,
   y : i32,
 }
 
-print_song_info :: proc(entity: ^mpd.MPD_Entity) {
-  song := mpd.mpd_entity_get_song(entity)
-
-  artist := mpd.mpd_song_get_tag(song, mpd.MPD_Tag_Type.MPD_TAG_ARTIST, 0)
-  album  := mpd.mpd_song_get_tag(song, mpd.MPD_Tag_Type.MPD_TAG_ALBUM, 0)
-  title  := mpd.mpd_song_get_tag(song, mpd.MPD_Tag_Type.MPD_TAG_TITLE, 0)
-  uri    := mpd.mpd_song_get_uri(song)
-
-  fmt.println(artist, album, title, "uri: ", uri)
-
-}
-
-draw_grid :: proc(window: ^Window, selected: ^Box) {
+draw_grid :: proc(window: ^Window, selected: ^Box, grid_data: ^Gui_data) {
   box_width := f32(window.width) / f32(GRID_COLS)
   box_height := f32(window.height) / f32(GRID_ROWS)
   i := 0
@@ -44,30 +39,40 @@ draw_grid :: proc(window: ^Window, selected: ^Box) {
     y := box_height * row_ix
     for col_ix: f32 = 0; col_ix < GRID_COLS; col_ix += 1 {
       x := box_width * col_ix
-      i += 1
       border_color: rl.Color
       if selected.x == i32(col_ix) && selected.y == i32(row_ix) {
         border_color = rl.BLUE
-        text = "Selected"
       } else {
         border_color = rl.GRAY
-        text = fmt.tprintf("%d", i)
       }
+
+      album := grid_data.albums^[grid_data.uris^[i+grid_data.offset]]
+
+
       rect := rl.Rectangle{x, y, box_width, box_height}
       rl.DrawRectangleRec(rect, rl.RAYWHITE)
       rl.DrawRectangleLinesEx(rect, 4, border_color)
-      draw_box_content(text, rect, box_width, box_height)
+      draw_box_content(album.artist, album.name, rect, box_width, box_height)
+      i += 1
     }
   }
 }
 
-draw_box_content :: proc(content: string, box: rl.Rectangle, box_width, box_height: f32) {
-  cs_content := strings.clone_to_cstring(content)
-  defer delete(cs_content)
-  text_width := rl.MeasureText(cs_content, FONT_SIZE)
-  text_x := box.x + (box_width - f32(text_width)) / 2
-  text_y := box.y + (box_height - f32(FONT_SIZE)) / 2
-  rl.DrawText(cs_content, i32(text_x), i32(text_y), FONT_SIZE, rl.BLACK)
+draw_box_content :: proc(artist: string, album_name: string, box: rl.Rectangle, box_width, box_height: f32) {
+  cs_artist := strings.clone_to_cstring(artist)
+  cs_album := strings.clone_to_cstring(album_name)
+  defer {
+    delete(cs_artist)
+    delete(cs_album)
+  }
+  artist_text_width := rl.MeasureText(cs_artist, FONT_SIZE)
+  album_text_width := rl.MeasureText(cs_album, FONT_SIZE)
+  artist_text_x := box.x + (box_width - f32(artist_text_width)) / 2
+  artist_text_y := box.y + (box_height - f32(FONT_SIZE)) / 2
+  album_text_x := box.x + (box_width - f32(album_text_width)) / 2
+  album_text_y := (box.y + (box_height - f32(FONT_SIZE)) / 2) + f32(FONT_SIZE) + 5
+  rl.DrawText(cs_artist, i32(artist_text_x), i32(artist_text_y), FONT_SIZE, rl.BLACK)
+  rl.DrawText(cs_album, i32(album_text_x), i32(album_text_y), FONT_SIZE, rl.BLACK)
 }
 
 Direction :: enum{Up, Right, Down, Left}
@@ -95,33 +100,39 @@ main :: proc() {
     if conn == nil || mpd.mpd_connection_get_error(conn) != .SUCCESS {
         return
     }
+    db_m := db.db_init()
+    defer db.db_free(&db_m)
 
-    // res := mpd.mpd_send_list_all_meta(conn, "")
-    // if !res {
-    //   fmt.println("Failed to get data")
-    //   return
-    // }
-    // for {
-    //   entity := mpd.mpd_recv_entity(conn)
-    //   if entity == nil {
-    //     break
-    //   }
-    //   defer mpd.mpd_entity_free(entity)
+    res := mpd.mpd_send_list_all_meta(conn, "")
+    if !res {
+      fmt.println("Failed to get data")
+      return
+    }
+    for {
+      entity := mpd.mpd_recv_entity(conn)
+      if entity == nil {
+        break
+      }
+      defer mpd.mpd_entity_free(entity)
 
-    //   type := mpd.mpd_entity_get_type (entity)
-    //   switch type {
-    //     case mpd.MPD_Entity_Type.UNKNOWN:
-    //       // fmt.println("Entity Unknown")
-    //     case mpd.MPD_Entity_Type.DIRECTORY:
-    //       // fmt.println("Entity Directory")
-    //     case mpd.MPD_Entity_Type.SONG:
-    //       print_song_info(entity)
-    //     case mpd.MPD_Entity_Type.PLAYLIST:
-    //       // fmt.println("Entity Playlist")
-    //   }
-    // }
+      type := mpd.mpd_entity_get_type (entity)
+      if type == mpd.MPD_Entity_Type.SONG {
+        song := mpd.mpd_entity_get_song(entity)
+        db.add_song(&db_m, song)
+      }
+    }
 
-    window := Window{"mpd_nowplaying", 900, 900, 144, rl.ConfigFlags{.WINDOW_RESIZABLE}}
+    offset := 0
+    uris := db.get_uris(&db_m)
+    defer delete(uris)
+
+    for uri in uris[:(GRID_ROWS*GRID_COLS)] {
+      album := db_m[uri]
+      fmt.println(album.artist, "-", album.name)
+    }
+
+    window := Window{"mpd_nowplaying", 1125, 900, 144, rl.ConfigFlags{.WINDOW_RESIZABLE}}
+    grid_data := Gui_data{offset, &uris, &db_m}
 
     rl.SetTraceLogLevel(rl.TraceLogLevel.NONE)
     rl.InitWindow(window.width, window.height, window.name)
@@ -152,8 +163,8 @@ main :: proc() {
 
       rl.BeginDrawing()
 
-      rl.ClearBackground(rl.PINK)
-      draw_grid(&window, &selected)
+      rl.ClearBackground(rl.RAYWHITE)
+      draw_grid(&window, &selected, &grid_data)
 
       rl.EndDrawing()
     }
