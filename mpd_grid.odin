@@ -8,7 +8,7 @@ import "core:strings"
 
 GRID_ROWS :: 4
 GRID_COLS :: 5
-FONT_SIZE :: 16
+FONT_SIZE :: 18
 
 Window :: struct {
   name:          cstring,
@@ -22,6 +22,7 @@ Gui_data :: struct {
   offset: int,
   uris: ^[]string,
   albums: ^db.Album_Map,
+  font: ^rl.Font
 }
 
 Box :: struct {
@@ -48,17 +49,16 @@ draw_grid :: proc(window: ^Window, selected: ^Box, grid_data: ^Gui_data) {
 
       album := grid_data.albums^[grid_data.uris^[i+grid_data.offset]]
 
-
       rect := rl.Rectangle{x, y, box_width, box_height}
       rl.DrawRectangleRec(rect, rl.RAYWHITE)
       rl.DrawRectangleLinesEx(rect, 4, border_color)
-      draw_box_content(album.artist, album.name, rect, box_width, box_height)
+      draw_box_content(album.artist, album.name, rect, box_width, box_height, grid_data.font)
       i += 1
     }
   }
 }
 
-draw_box_content :: proc(artist: string, album_name: string, box: rl.Rectangle, box_width, box_height: f32) {
+draw_box_content :: proc(artist: string, album_name: string, box: rl.Rectangle, box_width, box_height: f32, font: ^rl.Font) {
   cs_artist := strings.clone_to_cstring(artist)
   cs_album := strings.clone_to_cstring(album_name)
   defer {
@@ -136,20 +136,20 @@ main :: proc() {
     uris := db.get_uris(&db_m)
     defer delete(uris)
 
-    for uri in uris[:(GRID_ROWS*GRID_COLS)] {
-      album := db_m[uri]
-      fmt.println(album.artist, "-", album.name)
-    }
-
     window := Window{"mpd_nowplaying", 1125, 900, 144, rl.ConfigFlags{.WINDOW_RESIZABLE}}
-    grid_data := Gui_data{offset, &uris, &db_m}
 
     rl.SetTraceLogLevel(rl.TraceLogLevel.NONE)
     rl.InitWindow(window.width, window.height, window.name)
-    defer rl.CloseWindow()
+    font := rl.LoadFontEx("assets/IosevkaNerdFont-Light.ttf", FONT_SIZE, nil, 1000)
+
+    defer {
+      rl.UnloadFont(font)
+      rl.CloseWindow()
+    }
 
     rl.SetWindowState(window.control_flags)
     rl.SetTargetFPS(window.fps)
+    grid_data := Gui_data{offset, &uris, &db_m, &font}
 
     selected := Box{0,0}
 
