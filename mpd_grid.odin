@@ -71,17 +71,27 @@ draw_box_content :: proc(artist: string, album_name: string, box: rl.Rectangle, 
   artist_text_y := box.y + (box_height - f32(FONT_SIZE)) / 2
   album_text_x := box.x + (box_width - f32(album_text_width)) / 2
   album_text_y := (box.y + (box_height - f32(FONT_SIZE)) / 2) + f32(FONT_SIZE) + 5
-  rl.DrawText(cs_artist, i32(artist_text_x), i32(artist_text_y), FONT_SIZE, rl.BLACK)
-  rl.DrawText(cs_album, i32(album_text_x), i32(album_text_y), FONT_SIZE, rl.BLACK)
+  rl.DrawTextEx(font^, cs_artist, [2]f32{artist_text_x, artist_text_y}, FONT_SIZE, 2, rl.BLACK)
+  rl.DrawTextEx(font^, cs_album, [2]f32{album_text_x, album_text_y}, FONT_SIZE, 2, rl.BLACK)
 }
 
 Direction :: enum{Up, Right, Down, Left}
-move_selected :: proc(selected: ^Box, direction: Direction) {
+move_selected :: proc(selected: ^Box, direction: Direction, grid_data: ^Gui_data) {
   switch direction {
     case .Up:
-      selected.y = (selected.y - 1 + GRID_ROWS) % GRID_ROWS
+      if selected.y -1 < 0 {
+        if grid_data.offset >= GRID_ROWS + 1{
+         grid_data.offset -= GRID_ROWS + 1
+        }
+        break
+      }
+      selected.y -= 1
     case .Down:
-      selected.y = (selected.y + 1) % GRID_ROWS
+      if selected.y + 1 >= GRID_ROWS {
+        grid_data.offset += GRID_COLS
+        break
+      }
+      selected.y += 1
     case .Left:
       selected.x = (selected.x - 1 + GRID_COLS) % GRID_COLS
     case .Right:
@@ -152,13 +162,13 @@ main :: proc() {
       if rl.IsKeyPressed(rl.KeyboardKey.Q) {
         break
       } else if rl.IsKeyPressed(rl.KeyboardKey.K){
-        move_selected(&selected, Direction.Up)
+        move_selected(&selected, Direction.Up, &grid_data)
       } else if rl.IsKeyPressed(rl.KeyboardKey.J){
-        move_selected(&selected, Direction.Down)
+        move_selected(&selected, Direction.Down, &grid_data)
       } else if rl.IsKeyPressed(rl.KeyboardKey.H){
-        move_selected(&selected, Direction.Left)
+        move_selected(&selected, Direction.Left, &grid_data)
       } else if rl.IsKeyPressed(rl.KeyboardKey.L){
-        move_selected(&selected, Direction.Right)
+        move_selected(&selected, Direction.Right, &grid_data)
       }
 
       rl.BeginDrawing()
