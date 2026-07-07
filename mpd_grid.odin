@@ -117,7 +117,7 @@ move_selected :: proc(selected: ^Box, direction: Direction, grid_data: ^Gui_data
     case .Up:
       if selected.y -1 < 0 {
         if grid_data.offset >= GRID_ROWS + 1{
-         grid_data.offset -= GRID_ROWS + 1
+         grid_data.offset -= GRID_ROWS
         }
         break
       }
