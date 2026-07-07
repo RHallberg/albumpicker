@@ -176,7 +176,7 @@ main :: proc() {
 
     rl.SetTraceLogLevel(rl.TraceLogLevel.NONE)
     rl.InitWindow(window.width, window.height, window.name)
-    font := rl.LoadFontEx("assets/IosevkaNerdFont-Bold.ttf", FONT_SIZE, nil, 1000)
+    font := rl.LoadFontEx("assets/IosevkaNerdFont-Bold.ttf", FONT_SIZE, nil, 17000)
 
     defer {
       rl.UnloadFont(font)
