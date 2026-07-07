@@ -1,7 +1,6 @@
 package musicdb
 
 import mpd "../mpd"
-import     "core:fmt"
 import     "core:strings"
 
 Album :: struct {

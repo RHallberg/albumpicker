@@ -7,8 +7,8 @@ import db "musicdb"
 import "core:strings"
 
 GRID_ROWS :: 4
-GRID_COLS :: 5
-FONT_SIZE :: 18
+GRID_COLS :: 4
+FONT_SIZE :: 20
 
 Window :: struct {
   name:          cstring,
@@ -34,7 +34,6 @@ draw_grid :: proc(window: ^Window, selected: ^Box, grid_data: ^Gui_data) {
   box_width := f32(window.width) / f32(GRID_COLS)
   box_height := f32(window.height) / f32(GRID_ROWS)
   i := 0
-  text: string
 
   for row_ix: f32 = 0; row_ix < GRID_ROWS; row_ix += 1 {
     y := box_height * row_ix
@@ -59,20 +58,57 @@ draw_grid :: proc(window: ^Window, selected: ^Box, grid_data: ^Gui_data) {
 }
 
 draw_box_content :: proc(artist: string, album_name: string, box: rl.Rectangle, box_width, box_height: f32, font: ^rl.Font) {
-  cs_artist := strings.clone_to_cstring(artist)
-  cs_album := strings.clone_to_cstring(album_name)
+  cs_artist := strings.clone_to_cstring(strings.trim(artist, " \t\n\r"))
+  cs_album := strings.clone_to_cstring(strings.trim(album_name, " \t\n\r"))
   defer {
     delete(cs_artist)
     delete(cs_album)
   }
-  artist_text_width := rl.MeasureText(cs_artist, FONT_SIZE)
-  album_text_width := rl.MeasureText(cs_album, FONT_SIZE)
-  artist_text_x := box.x + (box_width - f32(artist_text_width)) / 2
-  artist_text_y := box.y + (box_height - f32(FONT_SIZE)) / 2
-  album_text_x := box.x + (box_width - f32(album_text_width)) / 2
-  album_text_y := (box.y + (box_height - f32(FONT_SIZE)) / 2) + f32(FONT_SIZE) + 5
-  rl.DrawTextEx(font^, cs_artist, [2]f32{artist_text_x, artist_text_y}, FONT_SIZE, 2, rl.BLACK)
-  rl.DrawTextEx(font^, cs_album, [2]f32{album_text_x, album_text_y}, FONT_SIZE, 2, rl.BLACK)
+
+  artist_size := f32(FONT_SIZE)
+  album_size := f32(FONT_SIZE)
+  dash_size := f32(FONT_SIZE)
+
+  spacing : f32 = 2.0
+  min_size : f32 = 8.0
+
+  for {
+      artist_measure := rl.MeasureTextEx(font^, cs_artist, artist_size, spacing)
+      album_measure := rl.MeasureTextEx(font^, cs_album, album_size, spacing)
+
+      changed := false
+
+      if artist_measure.x > box_width - 10 && artist_size > min_size {
+          artist_size -= 1
+          changed = true
+      }
+
+      if album_measure.x > box_width - 10 && album_size > min_size {
+          album_size -= 1
+          changed = true
+      }
+
+      if !changed {
+          break
+      }
+  }
+
+  dash_size = max(artist_size, album_size)
+
+  artist_measure := rl.MeasureTextEx(font^, cs_artist, artist_size, spacing)
+  dash_measure := rl.MeasureTextEx(font^, "-", dash_size, spacing)
+  album_measure := rl.MeasureTextEx(font^, cs_album, album_size, spacing)
+
+  total_height := artist_measure.y + dash_measure.y + album_measure.y + 10
+  text_y := box.y + (box_height - total_height) / 2
+
+  artist_x := box.x + (box_width - artist_measure.x) / 2
+  dash_x := box.x + (box_width - dash_measure.x) / 2
+  album_x := box.x + (box_width - album_measure.x) / 2
+
+  rl.DrawTextEx(font^, cs_artist, [2]f32{artist_x, text_y}, artist_size, spacing, rl.BLACK)
+  rl.DrawTextEx(font^, "-", [2]f32{dash_x, text_y + artist_measure.y}, dash_size, spacing, rl.BLACK)
+  rl.DrawTextEx(font^, cs_album, [2]f32{album_x, text_y + artist_measure.y + dash_measure.y}, album_size, spacing, rl.BLACK)
 }
 
 Direction :: enum{Up, Right, Down, Left}
@@ -136,11 +172,11 @@ main :: proc() {
     uris := db.get_uris(&db_m)
     defer delete(uris)
 
-    window := Window{"mpd_nowplaying", 1125, 900, 144, rl.ConfigFlags{.WINDOW_RESIZABLE}}
+    window := Window{"mpd_nowplaying", 1400, 1400, 144, rl.ConfigFlags{.WINDOW_RESIZABLE}}
 
     rl.SetTraceLogLevel(rl.TraceLogLevel.NONE)
     rl.InitWindow(window.width, window.height, window.name)
-    font := rl.LoadFontEx("assets/IosevkaNerdFont-Light.ttf", FONT_SIZE, nil, 1000)
+    font := rl.LoadFontEx("assets/IosevkaNerdFont-Bold.ttf", FONT_SIZE, nil, 1000)
 
     defer {
       rl.UnloadFont(font)
