@@ -216,10 +216,6 @@ main :: proc() {
     db_m := db.db_init()
     albumart_m := make(Albumart_Map)
     defer {
-      // FIXME: segfaults
-      for _, art in albumart_m {
-        rl.UnloadTexture(art)
-      }
       delete(albumart_m)
       db.db_free(&db_m)
     }
@@ -326,6 +322,10 @@ main :: proc() {
       draw_grid(&window, &selected, &grid_data)
 
       rl.EndDrawing()
+    }
+
+    for _, art in albumart_m {
+      rl.UnloadTexture(art)
     }
 
 }
