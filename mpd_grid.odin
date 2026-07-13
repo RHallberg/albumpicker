@@ -24,7 +24,8 @@ Gui_Data :: struct {
   uris: ^[]string,
   albums: ^db.Album_Map,
   albumart: ^Albumart_Map,
-  font: ^rl.Font
+  font: ^rl.Font,
+  render_text: bool
 }
 Albumart_Map :: map[string]rl.Texture
 
@@ -37,6 +38,7 @@ Box :: struct {
 draw_grid :: proc(window: ^Window, selected: ^Box, grid_data: ^Gui_Data) {
   box_width := f32(window.width) / f32(GRID_COLS)
   box_height := f32(window.height) / f32(GRID_ROWS)
+  outline_thickness := BORDER_THICKNESS
   i := 0
 
   for row_ix: f32 = 0; row_ix < GRID_ROWS; row_ix += 1 {
@@ -44,26 +46,31 @@ draw_grid :: proc(window: ^Window, selected: ^Box, grid_data: ^Gui_Data) {
     for col_ix: f32 = 0; col_ix < GRID_COLS; col_ix += 1 {
       x := box_width * col_ix
       border_color: rl.Color
-      if selected.x == i32(col_ix) && selected.y == i32(row_ix) {
-        border_color = rl.BLUE
-      } else {
-        border_color = rl.GRAY
-      }
 
       uri := grid_data.uris^[i+grid_data.offset]
       album := grid_data.albums^[uri]
 
       rect := rl.Rectangle{x, y, box_width, box_height}
       rect_inner := rl.Rectangle{x + BORDER_THICKNESS, y + BORDER_THICKNESS, box_width - BORDER_THICKNESS*2, box_height - BORDER_THICKNESS*2}
+
       rl.DrawRectangleRec(rect, rl.RAYWHITE)
-      rl.DrawRectangleLinesEx(rect, BORDER_THICKNESS, border_color)
 
       tex, ok := grid_data.albumart[uri]
       if ok {
         draw_box_image_content(&tex, rect_inner)
+        if grid_data.render_text {
+          draw_box_text_content(album.artist, album.name, rect_inner, grid_data.font)
+        }
       } else {
-        draw_box_text_content(album.artist, album.name, rect, box_width, box_height, grid_data.font)
+        draw_box_text_content(album.artist, album.name, rect_inner, grid_data.font)
       }
+      if selected.x == i32(col_ix) && selected.y == i32(row_ix) {
+        border_color = rl.BLUE
+        rl.DrawRectangleRec(rect_inner, rl.Fade(rl.BLUE, 0.2))
+      } else {
+        border_color = rl.RAYWHITE
+      }
+      rl.DrawRectangleLinesEx(rect, BORDER_THICKNESS, border_color)
       i += 1
     }
   }
@@ -79,7 +86,7 @@ draw_box_image_content :: proc(texture: ^rl.Texture, box: rl.Rectangle) {
   rl.DrawTexturePro(texture^, source_rec, box, rl.Vector2{0, 0}, 0, rl.WHITE)
 }
 
-draw_box_text_content :: proc(artist: string, album_name: string, box: rl.Rectangle, box_width, box_height: f32, font: ^rl.Font) {
+draw_box_text_content :: proc(artist: string, album_name: string, box: rl.Rectangle, font: ^rl.Font) {
   cs_artist := strings.clone_to_cstring(strings.trim(artist, " \t\n\r"))
   cs_album := strings.clone_to_cstring(strings.trim(album_name, " \t\n\r"))
   defer {
@@ -100,12 +107,12 @@ draw_box_text_content :: proc(artist: string, album_name: string, box: rl.Rectan
 
       changed := false
 
-      if artist_measure.x > box_width - 10 && artist_size > min_size {
+      if artist_measure.x > box.width - 10 && artist_size > min_size {
           artist_size -= 1
           changed = true
       }
 
-      if album_measure.x > box_width - 10 && album_size > min_size {
+      if album_measure.x > box.width - 10 && album_size > min_size {
           album_size -= 1
           changed = true
       }
@@ -122,15 +129,16 @@ draw_box_text_content :: proc(artist: string, album_name: string, box: rl.Rectan
   album_measure := rl.MeasureTextEx(font^, cs_album, album_size, spacing)
 
   total_height := artist_measure.y + dash_measure.y + album_measure.y + 10
-  text_y := box.y + (box_height - total_height) / 2
+  text_y := box.y + (box.height - total_height) / 2
 
-  artist_x := box.x + (box_width - artist_measure.x) / 2
-  dash_x := box.x + (box_width - dash_measure.x) / 2
-  album_x := box.x + (box_width - album_measure.x) / 2
+  artist_x := box.x + (box.width - artist_measure.x) / 2
+  dash_x := box.x + (box.width - dash_measure.x) / 2
+  album_x := box.x + (box.width - album_measure.x) / 2
 
-  rl.DrawTextEx(font^, cs_artist, [2]f32{artist_x, text_y}, artist_size, spacing, rl.BLACK)
-  rl.DrawTextEx(font^, "-", [2]f32{dash_x, text_y + artist_measure.y}, dash_size, spacing, rl.BLACK)
-  rl.DrawTextEx(font^, cs_album, [2]f32{album_x, text_y + artist_measure.y + dash_measure.y}, album_size, spacing, rl.BLACK)
+  rl.DrawRectangleRec(box, rl.Fade(rl.BLACK, 0.7))
+  rl.DrawTextEx(font^, cs_artist, [2]f32{artist_x, text_y}, artist_size, spacing, rl.RAYWHITE)
+  rl.DrawTextEx(font^, "-", [2]f32{dash_x, text_y + artist_measure.y}, dash_size, spacing, rl.RAYWHITE)
+  rl.DrawTextEx(font^, cs_album, [2]f32{album_x, text_y + artist_measure.y + dash_measure.y}, album_size, spacing, rl.RAYWHITE)
 }
 
 Direction :: enum{Up, Right, Down, Left}
@@ -216,7 +224,7 @@ main :: proc() {
     rl.SetWindowState(window.control_flags)
     rl.SetTargetFPS(window.fps)
 
-    grid_data := Gui_Data{offset, &uris, &db_m, &albumart_m, &font}
+    grid_data := Gui_Data{offset, &uris, &db_m, &albumart_m, &font, false}
 
     selected := Box{0,0}
 
@@ -237,6 +245,14 @@ main :: proc() {
         move_selected(&selected, Direction.Left, &grid_data)
       } else if rl.IsKeyPressed(rl.KeyboardKey.L){
         move_selected(&selected, Direction.Right, &grid_data)
+      }
+
+      if rl.IsKeyPressed(rl.KeyboardKey.LEFT_SHIFT) {
+        grid_data.render_text = true
+      }
+
+      if rl.IsKeyReleased(rl.KeyboardKey.LEFT_SHIFT) {
+        grid_data.render_text = false
       }
 
       for i := 0; i < GRID_ROWS * GRID_COLS; i += 1 {
