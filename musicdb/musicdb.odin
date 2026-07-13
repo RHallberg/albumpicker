@@ -6,6 +6,7 @@ import     "core:strings"
 Album :: struct {
   name : string,
   artist : string,
+  full_uri : string,
 }
 Album_Map :: map[string]Album
 
@@ -19,13 +20,13 @@ db_free :: proc(db: ^Album_Map) {
       delete(key)
       delete(album.name)
       delete(album.artist)
+      delete(album.full_uri)
   }
   delete(db^)
 }
 
 add_song :: proc(db: ^Album_Map, song: ^mpd.MPD_Song) {
     uri := strings.clone_from_cstring(mpd.mpd_song_get_uri(song))
-    defer delete(uri)
 
     last := strings.last_index(uri, "/")
     if last == -1 {
@@ -42,11 +43,13 @@ add_song :: proc(db: ^Album_Map, song: ^mpd.MPD_Song) {
         value^ = Album{
             name   = strings.clone_from_cstring(album_name),
             artist = strings.clone_from_cstring(artist),
+            full_uri = uri
         }
     } else {
         db[artist_album] = Album{
             name   = strings.clone_from_cstring(album_name),
             artist = strings.clone_from_cstring(artist),
+            full_uri = uri
         }
     }
 }

@@ -1,6 +1,8 @@
 package mpd
 
 foreign import libmpdclient "system:mpdclient"
+import "core:c"
+import "core:strings"
 
 MPD_Connection :: struct {}
 
@@ -122,4 +124,81 @@ foreign libmpdclient {
       song: ^MPD_Song
     ) ---
 
+    mpd_run_albumart :: proc (
+      conn: ^MPD_Connection,
+      uri: cstring,
+      offset: c.uint,
+      buffer: rawptr,
+      buffer_size: c.size_t
+    ) -> c.int ---
+
+    mpd_run_readpicture :: proc (
+      conn: ^MPD_Connection,
+      uri: cstring,
+      offset: c.uint,
+      buffer: rawptr,
+      buffer_size: c.size_t
+    ) -> c.int ---
+
+    mpd_connection_clear_error :: proc (
+      conn: ^MPD_Connection
+    ) -> c.bool ---
+
+}
+
+fetch_album_art :: proc(uri: string, host: cstring, port: uint) -> (img_data: [dynamic]u8, ok: bool) {
+  cstr_uri := strings.clone_to_cstring(uri)
+  defer delete(cstr_uri)
+  conn := mpd_connection_new(
+      host,
+      port,
+      1000
+  )
+  if conn == nil {
+      return
+  }
+  defer mpd_connection_free(conn)
+  chunk_size : c.size_t : 8192
+  offset : c.uint = 0
+  buffer: [chunk_size]u8
+  ok = false
+
+  for {
+    size := mpd_run_readpicture(conn, cstr_uri, offset, &buffer, chunk_size)
+    if size == -1 {
+      mpd_connection_clear_error(conn)
+      break
+    } else if size == 0 && offset == 0 {
+      break
+    } else if size == 0 {
+      ok = true
+      break
+    }
+    append(&img_data, ..buffer[:size])
+    offset += cast(c.uint)size
+  }
+
+  if ok {
+    return img_data, ok
+  }
+
+  delete(img_data)
+  img_data = {}
+  offset = 0
+  for {
+    size := mpd_run_albumart(conn, cstr_uri, offset, &buffer, chunk_size)
+    if size == -1 {
+      mpd_connection_clear_error(conn)
+      break
+    } else if size == 0 && offset == 0 {
+      break
+    } else if size == 0 {
+      ok = true
+      break
+    }
+    append(&img_data, ..buffer[:size])
+    offset += cast(c.uint)size
+  }
+
+  return img_data, ok
 }

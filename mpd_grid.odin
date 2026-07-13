@@ -9,6 +9,7 @@ import "core:strings"
 GRID_ROWS :: 4
 GRID_COLS :: 4
 FONT_SIZE :: 20
+BORDER_THICKNESS :: 4
 
 Window :: struct {
   name:          cstring,
@@ -18,19 +19,22 @@ Window :: struct {
   control_flags: rl.ConfigFlags,
 }
 
-Gui_data :: struct {
+Gui_Data :: struct {
   offset: int,
   uris: ^[]string,
   albums: ^db.Album_Map,
+  albumart: ^Albumart_Map,
   font: ^rl.Font
 }
+Albumart_Map :: map[string]rl.Texture
+
 
 Box :: struct {
   x : i32,
   y : i32,
 }
 
-draw_grid :: proc(window: ^Window, selected: ^Box, grid_data: ^Gui_data) {
+draw_grid :: proc(window: ^Window, selected: ^Box, grid_data: ^Gui_Data) {
   box_width := f32(window.width) / f32(GRID_COLS)
   box_height := f32(window.height) / f32(GRID_ROWS)
   i := 0
@@ -46,18 +50,36 @@ draw_grid :: proc(window: ^Window, selected: ^Box, grid_data: ^Gui_data) {
         border_color = rl.GRAY
       }
 
-      album := grid_data.albums^[grid_data.uris^[i+grid_data.offset]]
+      uri := grid_data.uris^[i+grid_data.offset]
+      album := grid_data.albums^[uri]
 
       rect := rl.Rectangle{x, y, box_width, box_height}
+      rect_inner := rl.Rectangle{x + BORDER_THICKNESS, y + BORDER_THICKNESS, box_width - BORDER_THICKNESS*2, box_height - BORDER_THICKNESS*2}
       rl.DrawRectangleRec(rect, rl.RAYWHITE)
-      rl.DrawRectangleLinesEx(rect, 4, border_color)
-      draw_box_content(album.artist, album.name, rect, box_width, box_height, grid_data.font)
+      rl.DrawRectangleLinesEx(rect, BORDER_THICKNESS, border_color)
+
+      tex, ok := grid_data.albumart[uri]
+      if ok {
+        draw_box_image_content(&tex, rect_inner)
+      } else {
+        draw_box_text_content(album.artist, album.name, rect, box_width, box_height, grid_data.font)
+      }
       i += 1
     }
   }
 }
 
-draw_box_content :: proc(artist: string, album_name: string, box: rl.Rectangle, box_width, box_height: f32, font: ^rl.Font) {
+draw_box_image_content :: proc(texture: ^rl.Texture, box: rl.Rectangle) {
+  source_rec := rl.Rectangle{
+      x = 0.0,
+      y = 0.0,
+      width = f32(texture.width),
+      height = f32(texture.height),
+  }
+  rl.DrawTexturePro(texture^, source_rec, box, rl.Vector2{0, 0}, 0, rl.WHITE)
+}
+
+draw_box_text_content :: proc(artist: string, album_name: string, box: rl.Rectangle, box_width, box_height: f32, font: ^rl.Font) {
   cs_artist := strings.clone_to_cstring(strings.trim(artist, " \t\n\r"))
   cs_album := strings.clone_to_cstring(strings.trim(album_name, " \t\n\r"))
   defer {
@@ -112,7 +134,7 @@ draw_box_content :: proc(artist: string, album_name: string, box: rl.Rectangle, 
 }
 
 Direction :: enum{Up, Right, Down, Left}
-move_selected :: proc(selected: ^Box, direction: Direction, grid_data: ^Gui_data) {
+move_selected :: proc(selected: ^Box, direction: Direction, grid_data: ^Gui_Data) {
   switch direction {
     case .Up:
       if selected.y -1 < 0 {
@@ -147,7 +169,15 @@ main :: proc() {
         return
     }
     db_m := db.db_init()
-    defer db.db_free(&db_m)
+    albumart_m := make(Albumart_Map)
+    defer {
+      // FIXME: segfaults
+      for _, art in albumart_m {
+        rl.UnloadTexture(art)
+      }
+      delete(albumart_m)
+      db.db_free(&db_m)
+    }
 
     res := mpd.mpd_send_list_all_meta(conn, "")
     if !res {
@@ -174,7 +204,7 @@ main :: proc() {
 
     window := Window{"mpd_nowplaying", 1400, 1400, 144, rl.ConfigFlags{.WINDOW_RESIZABLE}}
 
-    rl.SetTraceLogLevel(rl.TraceLogLevel.NONE)
+    // rl.SetTraceLogLevel(rl.TraceLogLevel.NONE)
     rl.InitWindow(window.width, window.height, window.name)
     font := rl.LoadFontEx("assets/IosevkaNerdFont-Bold.ttf", FONT_SIZE, nil, 17000)
 
@@ -185,9 +215,11 @@ main :: proc() {
 
     rl.SetWindowState(window.control_flags)
     rl.SetTargetFPS(window.fps)
-    grid_data := Gui_data{offset, &uris, &db_m, &font}
+
+    grid_data := Gui_Data{offset, &uris, &db_m, &albumart_m, &font}
 
     selected := Box{0,0}
+
 
     for !rl.WindowShouldClose() {
 
@@ -206,6 +238,23 @@ main :: proc() {
       } else if rl.IsKeyPressed(rl.KeyboardKey.L){
         move_selected(&selected, Direction.Right, &grid_data)
       }
+
+      for i := 0; i < GRID_ROWS * GRID_COLS; i += 1 {
+        uri := grid_data.uris^[i+grid_data.offset]
+        tex, ok := grid_data.albumart[uri]
+        if !ok {
+          album := grid_data.albums[uri]
+          // TODO: Fetch album art asynchronously
+          img_data, img_ok := mpd.fetch_album_art(album.full_uri, "localhost", 6600)
+          defer delete(img_data)
+          if img_ok {
+            img := rl.LoadImageFromMemory(".jpg", raw_data(img_data), i32(len(img_data)))
+            grid_data.albumart[uri] = rl.LoadTextureFromImage(img)
+            rl.UnloadImage(img)
+          }
+        }
+      }
+      // TODO: Cull album art that isn't visible
 
       rl.BeginDrawing()
 
