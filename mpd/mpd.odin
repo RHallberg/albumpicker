@@ -144,6 +144,18 @@ foreign libmpdclient {
       conn: ^MPD_Connection
     ) -> c.bool ---
 
+    mpd_run_clear :: proc (
+      conn: ^MPD_Connection
+    ) -> c.bool ---
+
+    mpd_run_add :: proc (
+      conn: ^MPD_Connection,
+      uri: cstring
+    ) -> c.bool ---
+
+    mpd_run_play :: proc (
+       conn: ^MPD_Connection
+    ) -> c.bool ---
 }
 
 fetch_album_art :: proc(uri: string, host: cstring, port: uint) -> (img_data: [dynamic]u8, ok: bool) {

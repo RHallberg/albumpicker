@@ -1,6 +1,7 @@
 package mpd_grid
 
 import     "core:fmt"
+import "core:time"
 import mpd "mpd"
 import rl  "vendor:raylib"
 import db "musicdb"
@@ -165,13 +166,49 @@ move_selected :: proc(selected: ^Box, direction: Direction, grid_data: ^Gui_Data
   }
 }
 
-main :: proc() {
-    conn := mpd.mpd_connection_new(
+enqueue_album :: proc (conn: ^mpd.MPD_Connection, grid_data: ^Gui_Data, selected: ^Box) {
+  position := (int(selected.y) * GRID_COLS) + int(selected.x) + grid_data.offset
+  uri := grid_data.uris[position]
+  c_uri := strings.clone_to_cstring(uri)
+  defer delete(c_uri)
+
+  mpd.mpd_run_clear(conn)
+  mpd.mpd_run_add(conn, c_uri)
+  mpd.mpd_run_play(conn)
+}
+
+refresh_connection :: proc (conn: ^^mpd.MPD_Connection) -> bool {
+    new_conn := mpd.mpd_connection_new(
         "localhost",
         6600,
-        30000,
+        15000,
     )
+
+    if new_conn == nil {
+        return false
+    }
+    else if mpd.mpd_connection_get_error(new_conn) != .SUCCESS {
+      mpd.mpd_connection_free(new_conn)
+      return false
+    }
+
+    if conn^ != nil {
+        mpd.mpd_connection_free(conn^)
+    }
+
+    conn^ = new_conn
+    return true
+}
+
+main :: proc() {
+    conn: ^mpd.MPD_Connection
+    conn_success := refresh_connection(&conn)
+    if !conn_success {
+        return
+    }
     defer mpd.mpd_connection_free(conn)
+    conn_refresh_time := time.now()
+    conn_refresh_interval_ms: f64 = 14000
 
     if conn == nil || mpd.mpd_connection_get_error(conn) != .SUCCESS {
         return
@@ -231,6 +268,15 @@ main :: proc() {
 
     for !rl.WindowShouldClose() {
 
+      elapsed := time.duration_milliseconds(time.since(conn_refresh_time))
+      if elapsed > conn_refresh_interval_ms {
+        conn_success = refresh_connection(&conn)
+        if !conn_success {
+          break
+        }
+        conn_refresh_time = time.now()
+      }
+
       if rl.IsWindowResized() {
         window.width = rl.GetScreenWidth()
         window.height = rl.GetScreenHeight()
@@ -245,6 +291,8 @@ main :: proc() {
         move_selected(&selected, Direction.Left, &grid_data)
       } else if rl.IsKeyPressed(rl.KeyboardKey.L){
         move_selected(&selected, Direction.Right, &grid_data)
+      } else if rl.IsKeyPressed(rl.KeyboardKey.SPACE){
+        enqueue_album(conn, &grid_data, &selected)
       }
 
       if rl.IsKeyPressed(rl.KeyboardKey.LEFT_SHIFT) {
