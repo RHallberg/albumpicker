@@ -6,6 +6,7 @@ import mpd "mpd"
 import rl  "vendor:raylib"
 import db "musicdb"
 import "core:strings"
+import "core:thread"
 
 GRID_ROWS :: 4
 GRID_COLS :: 4
@@ -29,8 +30,23 @@ Gui_Data :: struct {
   font: ^rl.Font,
   render_text: bool
 }
-Albumart_Map :: map[string]rl.Texture
+Albumart_Map :: map[string]Albumart_Data
+Albumart_Data :: struct {
+  texture: rl.Texture,
+  status: Albumart_Status,
+}
+Albumart_Status :: enum {
+  LOADED,
+  LOADING,
+  NONE,
+}
 
+Albumart_Task_Data :: struct {
+  uri: string,
+  full_uri: string,
+  img: rl.Image,
+  img_present: bool,
+}
 
 Box :: struct {
   x : i32,
@@ -41,7 +57,7 @@ draw_grid :: proc(window: ^Window, grid_data: ^Gui_Data) {
   selected := grid_data.selected
   box_width := f32(window.width) / f32(GRID_COLS)
   box_height := f32(window.height) / f32(GRID_ROWS)
-  outline_thickness := BORDER_THICKNESS
+
   i := 0
 
   for row_ix: f32 = 0; row_ix < GRID_ROWS; row_ix += 1 {
@@ -58,12 +74,14 @@ draw_grid :: proc(window: ^Window, grid_data: ^Gui_Data) {
 
       rl.DrawRectangleRec(rect, rl.RAYWHITE)
 
-      tex, ok := grid_data.albumart[uri]
-      if ok {
-        draw_box_image_content(&tex, rect_inner)
+      art_data, ok := grid_data.albumart[uri]
+      if ok && art_data.status == .LOADED {
+        draw_box_image_content(&art_data.texture, rect_inner)
         if grid_data.render_text {
           draw_box_text_content(album.artist, album.name, rect_inner, grid_data.font)
         }
+      } else if art_data.status == .LOADING {
+        rl.DrawRectangleRec(rect_inner, rl.Fade(rl.BLACK, 0.7))
       } else {
         draw_box_text_content(album.artist, album.name, rect_inner, grid_data.font)
       }
@@ -247,9 +265,15 @@ main :: proc() {
     uris := db.get_uris(&db_m)
     defer delete(uris)
 
+    pool: thread.Pool
+    pool_allocator := context.allocator
+    thread.pool_init(&pool, pool_allocator, 4)
+    thread.pool_start(&pool)
+    defer thread.pool_destroy(&pool)
+
     window := Window{"mpd_nowplaying", 1400, 1400, 144, rl.ConfigFlags{.WINDOW_RESIZABLE}}
 
-    // rl.SetTraceLogLevel(rl.TraceLogLevel.NONE)
+    rl.SetTraceLogLevel(rl.TraceLogLevel.NONE)
     rl.InitWindow(window.width, window.height, window.name)
     font := rl.LoadFontEx("assets/IosevkaNerdFont-Bold.ttf", FONT_SIZE, nil, 17000)
 
@@ -305,18 +329,39 @@ main :: proc() {
 
       for i := 0; i < GRID_ROWS * GRID_COLS; i += 1 {
         uri := grid_data.uris^[i+grid_data.offset]
-        tex, ok := grid_data.albumart[uri]
+        _ , ok := grid_data.albumart[uri]
         if !ok {
           album := grid_data.albums[uri]
-          // TODO: Fetch album art asynchronously
-          img_data, img_ok := mpd.fetch_album_art(album.full_uri, "localhost", 6600)
-          defer delete(img_data)
-          if img_ok {
-            img := rl.LoadImageFromMemory(".jpg", raw_data(img_data), i32(len(img_data)))
-            grid_data.albumart[uri] = rl.LoadTextureFromImage(img)
-            rl.UnloadImage(img)
+
+          grid_data.albumart[uri] = Albumart_Data{
+            status = .LOADING
           }
+          task_data := new(Albumart_Task_Data, context.allocator)
+          task_data.uri = strings.clone(uri)
+          task_data.full_uri = strings.clone(album.full_uri)
+          thread.pool_add_task(&pool, context.allocator, fetch_album_art_handler, task_data)
         }
+      }
+
+      for {
+        task, got_task := thread.pool_pop_done(&pool)
+        if !got_task {
+          break
+        }
+        data := cast(^Albumart_Task_Data)task.data
+        art_data := &grid_data.albumart[data.uri]
+        status: Albumart_Status
+        if data.img_present {
+          status = .LOADED
+        } else {
+          status = .NONE
+        }
+        art_data^ = Albumart_Data{
+           texture = rl.LoadTextureFromImage(data.img),
+           status = status
+        }
+        rl.UnloadImage(data.img)
+        delete(data.full_uri)
       }
       // TODO: Cull album art that isn't visible
 
@@ -328,8 +373,21 @@ main :: proc() {
       rl.EndDrawing()
     }
 
+    thread.pool_finish(&pool)
     for _, art in albumart_m {
-      rl.UnloadTexture(art)
+      rl.UnloadTexture(art.texture)
     }
 
+}
+
+fetch_album_art_handler :: proc(task: thread.Task) {
+  data := cast(^Albumart_Task_Data)task.data
+  img_data, img_ok := mpd.fetch_album_art(data.full_uri, "localhost", 6600)
+  defer delete(img_data)
+  img: rl.Image
+  if img_ok {
+    img = rl.LoadImageFromMemory(".jpg", raw_data(img_data), i32(len(img_data)))
+  }
+  data.img = img
+  data.img_present = img_ok
 }
