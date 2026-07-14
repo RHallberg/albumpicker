@@ -66,11 +66,15 @@ draw_grid :: proc(window: ^Window, grid_data: ^Gui_Data) {
       x := box_width * col_ix
       border_color: rl.Color
 
-      uri := grid_data.uris^[i+grid_data.offset]
-      album := grid_data.albums^[uri]
-
       rect := rl.Rectangle{x, y, box_width, box_height}
       rect_inner := rl.Rectangle{x + BORDER_THICKNESS, y + BORDER_THICKNESS, box_width - BORDER_THICKNESS*2, box_height - BORDER_THICKNESS*2}
+
+      if (i + grid_data.offset >= len(grid_data.uris)) {
+        rl.DrawRectangleRec(rect_inner, rl.Fade(rl.BLACK, 0.7))
+        continue
+      }
+      uri := grid_data.uris^[i+grid_data.offset]
+      album := grid_data.albums^[uri]
 
       rl.DrawRectangleRec(rect, rl.RAYWHITE)
 
@@ -165,31 +169,43 @@ draw_box_text_content :: proc(artist: string, album_name: string, box: rl.Rectan
 Direction :: enum{Up, Right, Down, Left}
 move_selected :: proc(direction: Direction, grid_data: ^Gui_Data) {
   selected := grid_data.selected
+  new_x := selected.x
+  new_y := selected.y
+  new_offset := grid_data.offset
   switch direction {
     case .Up:
       if selected.y -1 < 0 {
         if grid_data.offset >= GRID_ROWS + 1{
-         grid_data.offset -= GRID_ROWS
+         new_offset -= GRID_ROWS
         }
         break
       }
-      selected.y -= 1
+      new_y -= 1
     case .Down:
-      if grid_data.selected.y + 1 >= GRID_ROWS {
-        grid_data.offset += GRID_COLS
+      if grid_data.selected.y + 1 >= GRID_ROWS && grid_data.offset + GRID_COLS * GRID_ROWS <= len(grid_data.uris) {
+        new_offset += GRID_COLS
         break
       }
-      grid_data.selected.y += 1
+      new_y += 1
     case .Left:
-      selected.x = (selected.x - 1 + GRID_COLS) % GRID_COLS
+      new_x = (selected.x - 1 + GRID_COLS) % GRID_COLS
     case .Right:
-      selected.x = (selected.x + 1) % GRID_COLS
+      new_x = (selected.x + 1) % GRID_COLS
   }
+  if (int(new_y) * GRID_COLS) + int(new_x) + new_offset >= len(grid_data.uris) {
+    return
+  }
+  grid_data.offset = new_offset
+  selected.x = new_x
+  selected.y = new_y
 }
 
 enqueue_album :: proc (conn: ^mpd.MPD_Connection, grid_data: ^Gui_Data) {
   selected := grid_data.selected
   position := (int(selected.y) * GRID_COLS) + int(selected.x) + grid_data.offset
+  if position >= len(grid_data.uris) {
+    return
+  }
   uri := grid_data.uris[position]
   c_uri := strings.clone_to_cstring(uri)
   defer delete(c_uri)
@@ -328,6 +344,9 @@ main :: proc() {
       }
 
       for i := 0; i < GRID_ROWS * GRID_COLS; i += 1 {
+        if (i + grid_data.offset >= len(grid_data.uris)) {
+          break
+        }
         uri := grid_data.uris^[i+grid_data.offset]
         _ , ok := grid_data.albumart[uri]
         if !ok {
