@@ -262,6 +262,7 @@ main :: proc() {
     selected := Box{0,0}
 
 
+
     for !rl.WindowShouldClose() {
 
       elapsed := time.duration_milliseconds(time.since(conn_refresh_time))
@@ -279,15 +280,15 @@ main :: proc() {
       }
       if rl.IsKeyPressed(rl.KeyboardKey.Q) {
         break
-      } else if rl.IsKeyPressed(rl.KeyboardKey.K){
+      } else if rl.IsKeyPressed(.K) || rl.IsKeyPressed(.W) || rl.IsKeyPressed(.UP) {
         move_selected(&selected, Direction.Up, &grid_data)
-      } else if rl.IsKeyPressed(rl.KeyboardKey.J){
+      } else if rl.IsKeyPressed(.J) || rl.IsKeyPressed(.S) || rl.IsKeyPressed(.DOWN) {
         move_selected(&selected, Direction.Down, &grid_data)
-      } else if rl.IsKeyPressed(rl.KeyboardKey.H){
+      } else if rl.IsKeyPressed(.H) || rl.IsKeyPressed(.A) || rl.IsKeyPressed(.LEFT) {
         move_selected(&selected, Direction.Left, &grid_data)
-      } else if rl.IsKeyPressed(rl.KeyboardKey.L){
+      } else if rl.IsKeyPressed(.L) || rl.IsKeyPressed(.D) || rl.IsKeyPressed(.RIGHT) {
         move_selected(&selected, Direction.Right, &grid_data)
-      } else if rl.IsKeyPressed(rl.KeyboardKey.SPACE){
+      } else if rl.IsKeyPressed(.SPACE) || rl.IsKeyPressed(.ENTER) {
         enqueue_album(conn, &grid_data, &selected)
       }
 
