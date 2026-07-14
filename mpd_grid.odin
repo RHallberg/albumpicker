@@ -25,6 +25,7 @@ Gui_Data :: struct {
   uris: ^[]string,
   albums: ^db.Album_Map,
   albumart: ^Albumart_Map,
+  selected: ^Box,
   font: ^rl.Font,
   render_text: bool
 }
@@ -36,7 +37,8 @@ Box :: struct {
   y : i32,
 }
 
-draw_grid :: proc(window: ^Window, selected: ^Box, grid_data: ^Gui_Data) {
+draw_grid :: proc(window: ^Window, grid_data: ^Gui_Data) {
+  selected := grid_data.selected
   box_width := f32(window.width) / f32(GRID_COLS)
   box_height := f32(window.height) / f32(GRID_ROWS)
   outline_thickness := BORDER_THICKNESS
@@ -143,7 +145,8 @@ draw_box_text_content :: proc(artist: string, album_name: string, box: rl.Rectan
 }
 
 Direction :: enum{Up, Right, Down, Left}
-move_selected :: proc(selected: ^Box, direction: Direction, grid_data: ^Gui_Data) {
+move_selected :: proc(direction: Direction, grid_data: ^Gui_Data) {
+  selected := grid_data.selected
   switch direction {
     case .Up:
       if selected.y -1 < 0 {
@@ -154,11 +157,11 @@ move_selected :: proc(selected: ^Box, direction: Direction, grid_data: ^Gui_Data
       }
       selected.y -= 1
     case .Down:
-      if selected.y + 1 >= GRID_ROWS {
+      if grid_data.selected.y + 1 >= GRID_ROWS {
         grid_data.offset += GRID_COLS
         break
       }
-      selected.y += 1
+      grid_data.selected.y += 1
     case .Left:
       selected.x = (selected.x - 1 + GRID_COLS) % GRID_COLS
     case .Right:
@@ -166,7 +169,8 @@ move_selected :: proc(selected: ^Box, direction: Direction, grid_data: ^Gui_Data
   }
 }
 
-enqueue_album :: proc (conn: ^mpd.MPD_Connection, grid_data: ^Gui_Data, selected: ^Box) {
+enqueue_album :: proc (conn: ^mpd.MPD_Connection, grid_data: ^Gui_Data) {
+  selected := grid_data.selected
   position := (int(selected.y) * GRID_COLS) + int(selected.x) + grid_data.offset
   uri := grid_data.uris[position]
   c_uri := strings.clone_to_cstring(uri)
@@ -257,11 +261,10 @@ main :: proc() {
     rl.SetWindowState(window.control_flags)
     rl.SetTargetFPS(window.fps)
 
-    grid_data := Gui_Data{offset, &uris, &db_m, &albumart_m, &font, false}
 
     selected := Box{0,0}
 
-
+    grid_data := Gui_Data{offset, &uris, &db_m, &albumart_m, &selected, &font, false}
 
     for !rl.WindowShouldClose() {
 
@@ -281,15 +284,15 @@ main :: proc() {
       if rl.IsKeyPressed(rl.KeyboardKey.Q) {
         break
       } else if rl.IsKeyPressed(.K) || rl.IsKeyPressed(.W) || rl.IsKeyPressed(.UP) {
-        move_selected(&selected, Direction.Up, &grid_data)
+        move_selected(Direction.Up, &grid_data)
       } else if rl.IsKeyPressed(.J) || rl.IsKeyPressed(.S) || rl.IsKeyPressed(.DOWN) {
-        move_selected(&selected, Direction.Down, &grid_data)
+        move_selected(Direction.Down, &grid_data)
       } else if rl.IsKeyPressed(.H) || rl.IsKeyPressed(.A) || rl.IsKeyPressed(.LEFT) {
-        move_selected(&selected, Direction.Left, &grid_data)
+        move_selected(Direction.Left, &grid_data)
       } else if rl.IsKeyPressed(.L) || rl.IsKeyPressed(.D) || rl.IsKeyPressed(.RIGHT) {
-        move_selected(&selected, Direction.Right, &grid_data)
+        move_selected(Direction.Right, &grid_data)
       } else if rl.IsKeyPressed(.SPACE) || rl.IsKeyPressed(.ENTER) {
-        enqueue_album(conn, &grid_data, &selected)
+        enqueue_album(conn, &grid_data)
       }
 
       if rl.IsKeyPressed(rl.KeyboardKey.LEFT_SHIFT) {
@@ -320,7 +323,7 @@ main :: proc() {
       rl.BeginDrawing()
 
       rl.ClearBackground(rl.RAYWHITE)
-      draw_grid(&window, &selected, &grid_data)
+      draw_grid(&window, &grid_data)
 
       rl.EndDrawing()
     }
