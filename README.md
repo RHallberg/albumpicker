@@ -10,6 +10,8 @@ Simple mpd album picker
 
 **Space/Enter:** Play album
 
+**Shift:** Show Titles
+
 
 ## Preview
 ![preview of the the widget](screenshots/preview.gif "preview")
