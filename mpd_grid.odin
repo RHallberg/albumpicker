@@ -12,7 +12,7 @@ GRID_ROWS :: 4
 GRID_COLS :: 4
 FONT_SIZE :: 20
 BORDER_THICKNESS :: 4
-ART_CACHE_SIZE :: GRID_ROWS * GRID_COLS * 2
+ART_CACHE_SIZE :: GRID_ROWS * GRID_COLS * 3
 
 Window :: struct {
   name:          cstring,
@@ -27,6 +27,7 @@ Gui_Data :: struct {
   uris: ^[]string,
   albums: ^db.Album_Map,
   albumart: ^Albumart_Map,
+  albumart_cache: ^Albumart_Cache,
   selected: ^Box,
   font: ^rl.Font,
   render_text: bool
@@ -317,7 +318,7 @@ main :: proc() {
 
     selected := Box{0,0}
 
-    grid_data := Gui_Data{offset, &uris, &db_m, &albumart_m, &selected, &font, false}
+    grid_data := Gui_Data{offset, &uris, &db_m, &albumart_m, &art_cache, &selected, &font, false}
 
     for !rl.WindowShouldClose() {
 
@@ -356,13 +357,16 @@ main :: proc() {
         grid_data.render_text = false
       }
 
-      for i := 0; i < GRID_ROWS * GRID_COLS; i += 1 {
+      for i := 0 - GRID_COLS * 2; i < GRID_ROWS * GRID_COLS + (GRID_COLS * 2); i += 1 {
+        if (i + grid_data.offset < 0) {
+          continue
+        }
         if (i + grid_data.offset >= len(grid_data.uris)) {
           break
         }
         uri := grid_data.uris^[i+grid_data.offset]
-        _ , ok := grid_data.albumart[uri]
-        if !ok {
+        art , ok := grid_data.albumart[uri]
+        if !ok || art.status == .UNLOADED {
           album := grid_data.albums[uri]
 
           grid_data.albumart[uri] = Albumart_Data{
@@ -393,13 +397,17 @@ main :: proc() {
            status = status
         }
         rl.UnloadImage(data.img)
-        delete(data.full_uri)
+
         // Cache art and unload any textures evicted from the cache
-        evicted_uri, any_evicted := cache_put(&art_cache, data.uri)
+        evicted_uri, any_evicted := cache_put(&grid_data, strings.clone(data.uri))
+        delete(data.full_uri)
+        delete(data.uri)
+        free(data)
         if any_evicted {
           evicted_art := &grid_data.albumart[evicted_uri]
           evicted_art.status = .UNLOADED
           rl.UnloadTexture(evicted_art.texture)
+          delete(evicted_uri)
         }
       }
       // TODO: Cull album art that isn't visible
@@ -432,7 +440,8 @@ fetch_album_art_handler :: proc(task: thread.Task) {
   data.img_present = img_ok
 }
 
-cache_put :: proc(cache: ^Albumart_Cache, uri: string) -> (evicted: string, any_evicted: bool) {
+cache_put :: proc(grid_data: ^Gui_Data, uri: string) -> (evicted: string, any_evicted: bool) {
+  cache := grid_data.albumart_cache
   for i in 0..<cache.count {
     if cache.slots[i].uri == uri {
       cache.slots[i].used_at = time.now()
@@ -453,17 +462,28 @@ cache_put :: proc(cache: ^Albumart_Cache, uri: string) -> (evicted: string, any_
   oldest_time := cache.slots[0].used_at
 
   for i in 1..<ART_CACHE_SIZE {
-    if time.diff(cache.slots[i].used_at, oldest_time) > 0 {
+    visible := img_visible(grid_data, cache.slots[i].uri)
+    if time.diff(cache.slots[i].used_at, oldest_time) > 0 && !visible {
       oldest_time = cache.slots[i].used_at
       oldest_index = i
     }
   }
 
-  evicted = cache.slots[oldest_index].uri
+  evicted = strings.clone(cache.slots[oldest_index].uri)
+  delete(cache.slots[oldest_index].uri)
   cache.slots[oldest_index] = Albumart_Cache_Data{
     used_at = time.now(),
     uri = uri,
   }
 
   return evicted, true
+}
+
+img_visible :: proc(grid_data: ^Gui_Data, uri: string) -> bool {
+  for i in 0..<(GRID_COLS * GRID_ROWS) {
+    if uri == grid_data.uris[i+grid_data.offset] {
+      return true
+    }
+  }
+  return false
 }
