@@ -12,6 +12,7 @@ GRID_ROWS :: 4
 GRID_COLS :: 4
 FONT_SIZE :: 20
 BORDER_THICKNESS :: 4
+ART_CACHE_SIZE :: GRID_ROWS * GRID_COLS * 2
 
 Window :: struct {
   name:          cstring,
@@ -36,6 +37,7 @@ Albumart_Data :: struct {
   status: Albumart_Status,
 }
 Albumart_Status :: enum {
+  UNLOADED,
   LOADED,
   LOADING,
   NONE,
@@ -46,6 +48,15 @@ Albumart_Task_Data :: struct {
   full_uri: string,
   img: rl.Image,
   img_present: bool,
+}
+
+Albumart_Cache :: struct {
+  slots: [ART_CACHE_SIZE]Albumart_Cache_Data,
+  count: int,
+}
+Albumart_Cache_Data :: struct {
+  used_at: time.Time,
+  uri: string
 }
 
 Box :: struct {
@@ -251,12 +262,9 @@ main :: proc() {
     if conn == nil || mpd.mpd_connection_get_error(conn) != .SUCCESS {
         return
     }
+
     db_m := db.db_init()
-    albumart_m := make(Albumart_Map)
-    defer {
-      delete(albumart_m)
-      db.db_free(&db_m)
-    }
+    defer db.db_free(&db_m)
 
     res := mpd.mpd_send_list_all_meta(conn, "")
     if !res {
@@ -277,15 +285,20 @@ main :: proc() {
       }
     }
 
+    albumart_m := make(Albumart_Map)
+    art_cache: Albumart_Cache
+    pool: thread.Pool
+    thread.pool_init(&pool, context.allocator, 4)
+    thread.pool_start(&pool)
+    defer {
+      thread.pool_destroy(&pool)
+      delete(albumart_m)
+    }
+
     offset := 0
     uris := db.get_uris(&db_m)
     defer delete(uris)
 
-    pool: thread.Pool
-    pool_allocator := context.allocator
-    thread.pool_init(&pool, pool_allocator, 4)
-    thread.pool_start(&pool)
-    defer thread.pool_destroy(&pool)
 
     window := Window{"mpd_nowplaying", 1400, 1400, 144, rl.ConfigFlags{.WINDOW_RESIZABLE}}
 
@@ -381,6 +394,13 @@ main :: proc() {
         }
         rl.UnloadImage(data.img)
         delete(data.full_uri)
+        // Cache art and unload any textures evicted from the cache
+        evicted_uri, any_evicted := cache_put(&art_cache, data.uri)
+        if any_evicted {
+          evicted_art := &grid_data.albumart[evicted_uri]
+          evicted_art.status = .UNLOADED
+          rl.UnloadTexture(evicted_art.texture)
+        }
       }
       // TODO: Cull album art that isn't visible
 
@@ -394,9 +414,10 @@ main :: proc() {
 
     thread.pool_finish(&pool)
     for _, art in albumart_m {
-      rl.UnloadTexture(art.texture)
+      if art.status == .LOADED {
+        rl.UnloadTexture(art.texture)
+      }
     }
-
 }
 
 fetch_album_art_handler :: proc(task: thread.Task) {
@@ -409,4 +430,40 @@ fetch_album_art_handler :: proc(task: thread.Task) {
   }
   data.img = img
   data.img_present = img_ok
+}
+
+cache_put :: proc(cache: ^Albumart_Cache, uri: string) -> (evicted: string, any_evicted: bool) {
+  for i in 0..<cache.count {
+    if cache.slots[i].uri == uri {
+      cache.slots[i].used_at = time.now()
+      return "", false
+    }
+  }
+
+  if cache.count < ART_CACHE_SIZE {
+    cache.slots[cache.count] = Albumart_Cache_Data{
+      used_at = time.now(),
+      uri = uri,
+    }
+    cache.count += 1
+    return "", false
+  }
+
+  oldest_index := 0
+  oldest_time := cache.slots[0].used_at
+
+  for i in 1..<ART_CACHE_SIZE {
+    if time.diff(cache.slots[i].used_at, oldest_time) > 0 {
+      oldest_time = cache.slots[i].used_at
+      oldest_index = i
+    }
+  }
+
+  evicted = cache.slots[oldest_index].uri
+  cache.slots[oldest_index] = Albumart_Cache_Data{
+    used_at = time.now(),
+    uri = uri,
+  }
+
+  return evicted, true
 }
