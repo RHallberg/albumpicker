@@ -18,7 +18,7 @@ Simple mpd album picker
 
 
 ## Preview
-![preview of the the widget](screenshots/preview.gif "preview")
+![preview of the the program](screenshots/preview.gif "preview")
 
 ## Building
 
@@ -29,6 +29,12 @@ Dependencies:
 
 ```bash
 $ odin build . -build-mode:exe
+```
+
+### Installation
+
+```bash
+$ sudo make clean install
 ```
 
 
