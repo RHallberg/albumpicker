@@ -30,7 +30,8 @@ Gui_Data :: struct {
   albumart_cache: ^Albumart_Cache,
   selected: ^Box,
   font: ^rl.Font,
-  render_text: bool
+  render_text: bool,
+  sort_reverse : bool,
 }
 Albumart_Map :: map[string]Albumart_Data
 Albumart_Data :: struct {
@@ -227,6 +228,19 @@ enqueue_album :: proc (conn: ^mpd.MPD_Connection, grid_data: ^Gui_Data) {
   mpd.mpd_run_play(conn)
 }
 
+sort_order :: proc(grid_data: ^Gui_Data) {
+  grid_data.offset = 0
+  grid_data.selected.x = 0
+  grid_data.selected.y = 0
+  if(grid_data.sort_reverse) {
+    db.sort_by_artist(grid_data.albums, grid_data.uris^)
+    grid_data.sort_reverse = false
+  } else {
+    db.sort_by_artist_reverse(grid_data.albums, grid_data.uris^)
+    grid_data.sort_reverse = true
+  }
+}
+
 refresh_connection :: proc (conn: ^^mpd.MPD_Connection) -> bool {
     new_conn := mpd.mpd_connection_new(
         "localhost",
@@ -319,7 +333,17 @@ main :: proc() {
 
     selected := Box{0,0}
 
-    grid_data := Gui_Data{offset, &uris, &db_m, &albumart_m, &art_cache, &selected, &font, false}
+    grid_data := Gui_Data{
+      offset = offset,
+      uris = &uris,
+      albums = &db_m,
+      albumart = &albumart_m,
+      albumart_cache = &art_cache,
+      selected = &selected,
+      font = &font,
+      render_text = false,
+      sort_reverse = false,
+    }
 
     for !rl.WindowShouldClose() {
 
@@ -348,6 +372,11 @@ main :: proc() {
         move_selected(Direction.Right, &grid_data)
       } else if rl.IsKeyPressed(.SPACE) || rl.IsKeyPressed(.ENTER) {
         enqueue_album(conn, &grid_data)
+      } else if rl.IsKeyPressed(.TAB) {
+        sort_order(&grid_data)
+      } else if rl.IsKeyPressed(.R) {
+        grid_data.offset = 0
+        db.shuffle(grid_data.uris^)
       }
 
       if rl.IsKeyPressed(rl.KeyboardKey.LEFT_SHIFT) {

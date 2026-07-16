@@ -1,7 +1,7 @@
 # MPD Album picker
 Simple mpd album picker
 
-**todo:** Add sorting
+**todo:** Add Searching
 ### Controls:
 
 **HJKL/WASD/Arrow keys:** Navigation
@@ -11,6 +11,10 @@ Simple mpd album picker
 **Space/Enter:** Play album
 
 **Shift:** Show Titles
+
+**TAB:** Toggle desc/asc sorting
+
+**R:** Shuffle ordering
 
 
 ## Preview
