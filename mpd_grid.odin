@@ -9,7 +9,7 @@ import "core:strings"
 import "core:thread"
 
 GRID_ROWS :: 4
-GRID_COLS :: 4
+GRID_COLS :: 7
 FONT_SIZE :: 20
 BORDER_THICKNESS :: 4
 ART_CACHE_SIZE :: GRID_ROWS * GRID_COLS * 3
@@ -188,7 +188,7 @@ move_selected :: proc(direction: Direction, grid_data: ^Gui_Data) {
     case .Up:
       if selected.y -1 < 0 {
         if grid_data.offset >= GRID_ROWS + 1{
-         new_offset -= GRID_ROWS
+         new_offset -= GRID_COLS
         }
         break
       }
@@ -300,8 +300,9 @@ main :: proc() {
     uris := db.get_uris(&db_m)
     defer delete(uris)
 
+    db.sort_by_artist(&db_m, uris)
 
-    window := Window{"mpd_nowplaying", 1400, 1400, 144, rl.ConfigFlags{.WINDOW_RESIZABLE}}
+    window := Window{"mpd_nowplaying", 1400 * 1.75, 1400, 144, rl.ConfigFlags{.WINDOW_RESIZABLE}}
 
     rl.SetTraceLogLevel(rl.TraceLogLevel.NONE)
     rl.InitWindow(window.width, window.height, window.name)

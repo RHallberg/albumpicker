@@ -2,6 +2,7 @@ package musicdb
 
 import mpd "../mpd"
 import     "core:strings"
+import     "core:slice"
 
 Album :: struct {
   name : string,
@@ -63,4 +64,29 @@ get_uris :: proc(db: ^Album_Map) -> []string {
       i += 1
   }
   return keys
+}
+
+sort_by_artist :: proc(db: ^Album_Map, uris: []string) {
+  cmp :: proc (i, j: string, data: rawptr) -> slice.Ordering {
+    album_data := cast(^Album_Map)data
+    album_i := album_data[i]
+    album_j := album_data[j]
+
+    if album_i.artist < album_j.artist {
+      return .Less
+    } else if album_i.artist > album_j.artist {
+      return .Greater
+    }
+
+    if album_i.name < album_j.name {
+      return .Less
+    } else if album_i.name > album_j.name {
+      return .Greater
+    }
+
+    return .Equal
+
+  }
+
+  slice.sort_by_cmp_with_data(uris, cmp, db)
 }
