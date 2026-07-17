@@ -12,6 +12,14 @@ GRID_ROWS :: 4
 GRID_COLS :: 7
 FONT_SIZE :: 20
 BORDER_THICKNESS :: 4
+
+FONT_COLOR :: rl.RAYWHITE
+BORDER_COLOR :: rl.RAYWHITE
+BOX_BACKGROUND_COLOR :: rl.GRAY
+SELECTED_COLOR :: rl.BLUE
+
+MPD_HOST :: "localhost"
+MPD_PORT :: 6600
 ART_CACHE_SIZE :: GRID_ROWS * GRID_COLS * 3
 
 Window :: struct {
@@ -83,13 +91,11 @@ draw_grid :: proc(window: ^Window, grid_data: ^Gui_Data) {
       rect_inner := rl.Rectangle{x + BORDER_THICKNESS, y + BORDER_THICKNESS, box_width - BORDER_THICKNESS*2, box_height - BORDER_THICKNESS*2}
 
       if (i + grid_data.offset >= len(grid_data.uris)) {
-        rl.DrawRectangleRec(rect_inner, rl.Fade(rl.BLACK, 0.7))
+        rl.DrawRectangleRec(rect_inner, rl.Fade(BOX_BACKGROUND_COLOR, 0.7))
         continue
       }
       uri := grid_data.uris^[i+grid_data.offset]
       album := grid_data.albums^[uri]
-
-      rl.DrawRectangleRec(rect, rl.RAYWHITE)
 
       art_data, ok := grid_data.albumart[uri]
       if ok && art_data.status == .LOADED {
@@ -98,15 +104,15 @@ draw_grid :: proc(window: ^Window, grid_data: ^Gui_Data) {
           draw_box_text_content(album.artist, album.name, rect_inner, grid_data.font)
         }
       } else if art_data.status == .LOADING {
-        rl.DrawRectangleRec(rect_inner, rl.Fade(rl.BLACK, 0.7))
+        rl.DrawRectangleRec(rect_inner, rl.Fade(BOX_BACKGROUND_COLOR, 0.7))
       } else {
         draw_box_text_content(album.artist, album.name, rect_inner, grid_data.font)
       }
       if selected.x == i32(col_ix) && selected.y == i32(row_ix) {
-        border_color = rl.BLUE
-        rl.DrawRectangleRec(rect_inner, rl.Fade(rl.BLUE, 0.2))
+        border_color = SELECTED_COLOR
+        rl.DrawRectangleRec(rect_inner, rl.Fade(SELECTED_COLOR, 0.2))
       } else {
-        border_color = rl.RAYWHITE
+        border_color = BORDER_COLOR
       }
       rl.DrawRectangleLinesEx(rect, BORDER_THICKNESS, border_color)
       i += 1
@@ -139,6 +145,7 @@ draw_box_text_content :: proc(artist: string, album_name: string, box: rl.Rectan
   spacing : f32 = 2.0
   min_size : f32 = 8.0
 
+  // Resize font until it fits within box. FIXME: Make less ugly for long album/artist names
   for {
       artist_measure := rl.MeasureTextEx(font^, cs_artist, artist_size, spacing)
       album_measure := rl.MeasureTextEx(font^, cs_album, album_size, spacing)
@@ -173,10 +180,10 @@ draw_box_text_content :: proc(artist: string, album_name: string, box: rl.Rectan
   dash_x := box.x + (box.width - dash_measure.x) / 2
   album_x := box.x + (box.width - album_measure.x) / 2
 
-  rl.DrawRectangleRec(box, rl.Fade(rl.BLACK, 0.7))
-  rl.DrawTextEx(font^, cs_artist, [2]f32{artist_x, text_y}, artist_size, spacing, rl.RAYWHITE)
-  rl.DrawTextEx(font^, "-", [2]f32{dash_x, text_y + artist_measure.y}, dash_size, spacing, rl.RAYWHITE)
-  rl.DrawTextEx(font^, cs_album, [2]f32{album_x, text_y + artist_measure.y + dash_measure.y}, album_size, spacing, rl.RAYWHITE)
+  rl.DrawRectangleRec(box, rl.Fade(BOX_BACKGROUND_COLOR, 0.7))
+  rl.DrawTextEx(font^, cs_artist, [2]f32{artist_x, text_y}, artist_size, spacing, FONT_COLOR)
+  rl.DrawTextEx(font^, "-", [2]f32{dash_x, text_y + artist_measure.y}, dash_size, spacing, FONT_COLOR)
+  rl.DrawTextEx(font^, cs_album, [2]f32{album_x, text_y + artist_measure.y + dash_measure.y}, album_size, spacing, FONT_COLOR)
 }
 
 Direction :: enum{Up, Right, Down, Left}
@@ -243,8 +250,8 @@ sort_order :: proc(grid_data: ^Gui_Data) {
 
 refresh_connection :: proc (conn: ^^mpd.MPD_Connection) -> bool {
     new_conn := mpd.mpd_connection_new(
-        "localhost",
-        6600,
+        MPD_HOST,
+        MPD_PORT,
         15000,
     )
 
@@ -265,6 +272,8 @@ refresh_connection :: proc (conn: ^^mpd.MPD_Connection) -> bool {
 }
 
 main :: proc() {
+
+    // Setup: MPD connection
     conn: ^mpd.MPD_Connection
     conn_success := refresh_connection(&conn)
     if !conn_success {
@@ -278,6 +287,7 @@ main :: proc() {
         return
     }
 
+    // Setup: music db
     db_m := db.db_init()
     defer db.db_free(&db_m)
 
@@ -300,6 +310,7 @@ main :: proc() {
       }
     }
 
+    // Setup: The album art cache and pool
     albumart_m := make(Albumart_Map)
     art_cache: Albumart_Cache
     pool: thread.Pool
@@ -310,16 +321,17 @@ main :: proc() {
       delete(albumart_m)
     }
 
-    offset := 0
-    uris := db.get_uris(&db_m)
-    defer delete(uris)
-
-    db.sort_by_artist(&db_m, uris)
-
+    // Setup: Initialize the raylib window and context
     window := Window{"mpd_nowplaying", 1400 * 1.75, 1400, 144, rl.ConfigFlags{.WINDOW_RESIZABLE}}
 
     rl.SetTraceLogLevel(rl.TraceLogLevel.NONE)
     rl.InitWindow(window.width, window.height, window.name)
+    defer rl.CloseWindow()
+
+    rl.SetWindowState(window.control_flags)
+    rl.SetTargetFPS(window.fps)
+
+    // Setup: Initialize the app context
     font_data := #load("assets/IosevkaNerdFont-Bold.ttf")
     font := rl.LoadFontFromMemory(
         ".ttf",
@@ -329,18 +341,16 @@ main :: proc() {
         nil,
         17000,
     )
-
+    offset := 0
+    selected := Box{0,0}
+    uris := db.get_uris(&db_m)
+    db.sort_by_artist(&db_m, uris)
     defer {
+      delete(uris)
       rl.UnloadFont(font)
-      rl.CloseWindow()
     }
 
-    rl.SetWindowState(window.control_flags)
-    rl.SetTargetFPS(window.fps)
-
-
-    selected := Box{0,0}
-
+    // Main graphics-context
     grid_data := Gui_Data{
       offset = offset,
       uris = &uris,
@@ -353,8 +363,10 @@ main :: proc() {
       sort_reverse = false,
     }
 
+    // Graphics loop
     for !rl.WindowShouldClose() {
 
+      // Refresh connection
       elapsed := time.duration_milliseconds(time.since(conn_refresh_time))
       if elapsed > conn_refresh_interval_ms {
         conn_success = refresh_connection(&conn)
@@ -368,6 +380,8 @@ main :: proc() {
         window.width = rl.GetScreenWidth()
         window.height = rl.GetScreenHeight()
       }
+
+      // Disgusting key-handler
       if rl.IsKeyPressed(rl.KeyboardKey.Q) {
         break
       } else if rl.IsKeyPressed(.K) || rl.IsKeyPressed(.W) || rl.IsKeyPressed(.UP) {
@@ -390,11 +404,11 @@ main :: proc() {
       if rl.IsKeyPressed(rl.KeyboardKey.LEFT_SHIFT) {
         grid_data.render_text = true
       }
-
       if rl.IsKeyReleased(rl.KeyboardKey.LEFT_SHIFT) {
         grid_data.render_text = false
       }
 
+      // Push image tasks to task pool. Preload 2 rows above and 2 below visible grid
       for i := 0 - GRID_COLS * 2; i < GRID_ROWS * GRID_COLS + (GRID_COLS * 2); i += 1 {
         if (i + grid_data.offset < 0) {
           continue
@@ -417,6 +431,7 @@ main :: proc() {
         }
       }
 
+      // Fetch finished tasks from thread pool
       for {
         task, got_task := thread.pool_pop_done(&pool)
         if !got_task {
@@ -457,6 +472,7 @@ main :: proc() {
       rl.EndDrawing()
     }
 
+    // Some cleanup on exit
     thread.pool_finish(&pool)
     for _, art in albumart_m {
       if art.status == .LOADED {
@@ -467,12 +483,12 @@ main :: proc() {
 
 fetch_album_art_handler :: proc(task: thread.Task) {
   data := cast(^Albumart_Task_Data)task.data
-  img_data, img_ok := mpd.fetch_album_art(data.full_uri, "localhost", 6600)
+  img_data, img_ok := mpd.fetch_album_art(data.full_uri, MPD_HOST, MPD_PORT)
   defer delete(img_data)
   img: rl.Image
   if img_ok {
     img = rl.LoadImageFromMemory(".jpg", raw_data(img_data), i32(len(img_data)))
-    rl.ImageResize(&img, 300, 300)
+    rl.ImageResize(&img, 400, 400)
   }
   data.img = img
   data.img_present = img_ok
@@ -517,6 +533,7 @@ cache_put :: proc(grid_data: ^Gui_Data, uri: string) -> (evicted: string, any_ev
   return evicted, true
 }
 
+// Helper to check that we do not evict visible images from the cache
 img_visible :: proc(grid_data: ^Gui_Data, uri: string) -> bool {
   for i in 0..<(GRID_COLS * GRID_ROWS) {
     if uri == grid_data.uris[i+grid_data.offset] {
