@@ -4,6 +4,8 @@ import mpd "../mpd"
 import     "core:strings"
 import     "core:slice"
 import     "core:math/rand"
+import     "core:unicode"
+import     "core:unicode/utf8"
 
 Album :: struct {
   name : string,
@@ -66,7 +68,6 @@ add_song :: proc(db: ^Album_Map, song: ^mpd.MPD_Song) {
 
 get_uris :: proc(db: ^Album_Map) -> []string {
   keys := make([]string, len(db))
-
   i := 0
   for key in db {
       keys[i] = key
@@ -128,4 +129,19 @@ sort_by_artist_reverse :: proc(db: ^Album_Map, uris: []string) {
 
 shuffle :: proc(uris: []string) {
   rand.shuffle(uris)
+}
+
+filter_by_album_artist :: proc(db: ^Album_Map, uris: []string, match: rune, index: int) -> []string {
+  char := unicode.to_lower(match)
+  matches := 0
+  for uri in uris {
+    artist := db[uri].artist_lower
+    album := db[uri].name_lower
+    if (index < len(artist) && utf8.rune_at_pos(artist, index) == char)  ||
+       (index < len(album) && utf8.rune_at_pos(album, index) == char) {
+      uris[matches] = uri
+      matches += 1
+    }
+  }
+  return uris[:matches]
 }

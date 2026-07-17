@@ -1,7 +1,6 @@
 # MPD Album picker
 Simple mpd album picker
 
-**todo:** Add Searching
 ### Controls:
 
 **HJKL/WASD/Arrow keys:** Navigation
@@ -15,6 +14,15 @@ Simple mpd album picker
 **TAB:** Toggle desc/asc sorting
 
 **R:** Shuffle ordering
+
+**F:** Start search mode
+
+**ESC:** Reset search
+
+### In search mode:
+Naively searches album and artist. No misspellings.
+
+**ESC/Enter:** Exit search
 
 
 ## Preview

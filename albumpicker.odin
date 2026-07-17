@@ -11,7 +11,7 @@ import "core:thread"
 GRID_ROWS :: 4
 GRID_COLS :: 7
 FONT_SIZE :: 20
-BORDER_THICKNESS :: 1
+BORDER_THICKNESS :: 2
 
 FONT_COLOR :: rl.RAYWHITE
 BORDER_COLOR :: rl.BLACK
@@ -69,6 +69,11 @@ Albumart_Cache_Data :: struct {
   uri: string
 }
 
+Search_State :: struct {
+  query: [dynamic]rune,
+  index: int
+}
+
 Box :: struct {
   x : i32,
   y : i32,
@@ -92,6 +97,7 @@ draw_grid :: proc(window: ^Window, grid_data: ^Gui_Data) {
 
       if (i + grid_data.offset >= len(grid_data.uris)) {
         rl.DrawRectangleRec(rect_inner, rl.Fade(BOX_BACKGROUND_COLOR, 0.7))
+        rl.DrawRectangleLinesEx(rect, BORDER_THICKNESS, BORDER_COLOR)
         continue
       }
       uri := grid_data.uris^[i+grid_data.offset]
@@ -184,6 +190,52 @@ draw_box_text_content :: proc(artist: string, album_name: string, box: rl.Rectan
   rl.DrawTextEx(font^, cs_artist, [2]f32{artist_x, text_y}, artist_size, spacing, FONT_COLOR)
   rl.DrawTextEx(font^, "-", [2]f32{dash_x, text_y + artist_measure.y}, dash_size, spacing, FONT_COLOR)
   rl.DrawTextEx(font^, cs_album, [2]f32{album_x, text_y + artist_measure.y + dash_measure.y}, album_size, spacing, FONT_COLOR)
+}
+
+handle_navigation :: proc(grid_data: ^Gui_Data) {
+  if rl.IsKeyPressed(.K) || rl.IsKeyPressed(.W) || rl.IsKeyPressed(.UP) {
+    move_selected(Direction.Up, grid_data)
+  } else if rl.IsKeyPressed(.J) || rl.IsKeyPressed(.S) || rl.IsKeyPressed(.DOWN) {
+    move_selected(Direction.Down, grid_data)
+  } else if rl.IsKeyPressed(.H) || rl.IsKeyPressed(.A) || rl.IsKeyPressed(.LEFT) {
+    move_selected(Direction.Left, grid_data)
+  } else if rl.IsKeyPressed(.L) || rl.IsKeyPressed(.D) || rl.IsKeyPressed(.RIGHT) {
+    move_selected(Direction.Right, grid_data)
+  } else if rl.IsKeyPressed(.TAB) {
+    sort_order(grid_data)
+  } else if rl.IsKeyPressed(.R) {
+    grid_data.offset = 0
+    reset_uris(grid_data)
+    db.shuffle(grid_data.uris^)
+  }
+}
+
+handle_search :: proc(grid_data: ^Gui_Data, state: ^Search_State) {
+  backspace := rl.IsKeyPressed(.BACKSPACE)
+  char := rl.GetCharPressed()
+  if u8(char) == 0 && !backspace {
+    return
+  }
+
+  if backspace && state.index > 0 {
+    pop(&state.query)
+    reset_uris(grid_data)
+    // FIXME: Replaying the search is shit but it's quick enough surprisingly
+    for i := 0; i < len(state.query); i += 1 {
+      grid_data.uris^ = db.filter_by_album_artist(grid_data.albums, grid_data.uris^, state.query[i], i)
+    }
+    state.index -= 1
+    return
+  } else if backspace {
+    return
+  }
+
+  grid_data.offset = 0
+  grid_data.selected.x = 0
+  grid_data.selected.y = 0
+  grid_data.uris^ = db.filter_by_album_artist(grid_data.albums, grid_data.uris^, char, state.index)
+  append(&state.query, char)
+  state.index += 1
 }
 
 Direction :: enum{Up, Right, Down, Left}
@@ -363,8 +415,11 @@ main :: proc() {
       sort_reverse = false,
     }
 
+    search_mode := false
+    search_state: Search_State
+
     // Graphics loop
-    for !rl.WindowShouldClose() {
+    for {
 
       // Refresh connection
       elapsed := time.duration_milliseconds(time.since(conn_refresh_time))
@@ -381,24 +436,30 @@ main :: proc() {
         window.height = rl.GetScreenHeight()
       }
 
-      // Disgusting key-handler
-      if rl.IsKeyPressed(rl.KeyboardKey.Q) {
-        break
-      } else if rl.IsKeyPressed(.K) || rl.IsKeyPressed(.W) || rl.IsKeyPressed(.UP) {
-        move_selected(Direction.Up, &grid_data)
-      } else if rl.IsKeyPressed(.J) || rl.IsKeyPressed(.S) || rl.IsKeyPressed(.DOWN) {
-        move_selected(Direction.Down, &grid_data)
-      } else if rl.IsKeyPressed(.H) || rl.IsKeyPressed(.A) || rl.IsKeyPressed(.LEFT) {
-        move_selected(Direction.Left, &grid_data)
-      } else if rl.IsKeyPressed(.L) || rl.IsKeyPressed(.D) || rl.IsKeyPressed(.RIGHT) {
-        move_selected(Direction.Right, &grid_data)
-      } else if rl.IsKeyPressed(.SPACE) || rl.IsKeyPressed(.ENTER) {
-        enqueue_album(conn, &grid_data)
-      } else if rl.IsKeyPressed(.TAB) {
-        sort_order(&grid_data)
-      } else if rl.IsKeyPressed(.R) {
-        grid_data.offset = 0
-        db.shuffle(grid_data.uris^)
+      if !search_mode {
+        if rl.IsKeyPressed(rl.KeyboardKey.Q) {
+          break
+        } else if rl.IsKeyPressed(.SPACE) || rl.IsKeyPressed(.ENTER) {
+          enqueue_album(conn, &grid_data)
+        } else if rl.IsKeyPressed(.ESCAPE) {
+          reset_uris(&grid_data)
+        } else if rl.IsKeyPressed(.F) {
+          search_state = Search_State{
+            index = 0
+          }
+          search_mode = true
+        }
+        handle_navigation(&grid_data)
+      } else {
+        if(rl.IsKeyPressed(.ENTER) || rl.IsKeyPressed(.ESCAPE) || (rl.IsKeyPressed(.F) && rl.IsKeyPressed(.LEFT_CONTROL))) {
+          delete(search_state.query)
+          search_mode = false
+          if (len(grid_data.uris) == 0) {
+            reset_uris(&grid_data)
+          }
+        } else {
+          handle_search(&grid_data, &search_state)
+        }
       }
 
       if rl.IsKeyPressed(rl.KeyboardKey.LEFT_SHIFT) {
@@ -536,9 +597,16 @@ cache_put :: proc(grid_data: ^Gui_Data, uri: string) -> (evicted: string, any_ev
 // Helper to check that we do not evict visible images from the cache
 img_visible :: proc(grid_data: ^Gui_Data, uri: string) -> bool {
   for i in 0..<(GRID_COLS * GRID_ROWS) {
-    if uri == grid_data.uris[i+grid_data.offset] {
+    if i+grid_data.offset < len(grid_data.uris) && uri == grid_data.uris[i+grid_data.offset] {
       return true
     }
   }
   return false
+}
+
+reset_uris :: proc(grid_data: ^Gui_Data) {
+  delete(grid_data.uris^)
+  grid_data.uris^ = db.get_uris(grid_data.albums)
+  grid_data.sort_reverse = true
+  sort_order(grid_data)
 }
