@@ -438,11 +438,11 @@ main :: proc() {
       }
 
       if !search_mode {
-        if rl.IsKeyPressed(rl.KeyboardKey.Q) {
+        if rl.IsKeyPressed(rl.KeyboardKey.Q) || rl.IsKeyPressed(rl.KeyboardKey.ESCAPE) {
           break
         } else if rl.IsKeyPressed(.SPACE) || rl.IsKeyPressed(.ENTER) {
           enqueue_album(conn, &grid_data)
-        } else if rl.IsKeyPressed(.ESCAPE) {
+        } else if rl.IsKeyPressed(.C) {
           reset_uris(&grid_data)
         } else if rl.IsKeyPressed(.F) {
           search_state = Search_State{
