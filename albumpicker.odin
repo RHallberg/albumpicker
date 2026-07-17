@@ -448,7 +448,6 @@ main :: proc() {
           delete(evicted_uri)
         }
       }
-      // TODO: Cull album art that isn't visible
 
       rl.BeginDrawing()
 
@@ -473,6 +472,7 @@ fetch_album_art_handler :: proc(task: thread.Task) {
   img: rl.Image
   if img_ok {
     img = rl.LoadImageFromMemory(".jpg", raw_data(img_data), i32(len(img_data)))
+    rl.ImageResize(&img, 300, 300)
   }
   data.img = img
   data.img_present = img_ok
