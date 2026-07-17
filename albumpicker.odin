@@ -11,11 +11,11 @@ import "core:thread"
 GRID_ROWS :: 4
 GRID_COLS :: 7
 FONT_SIZE :: 20
-BORDER_THICKNESS :: 4
+BORDER_THICKNESS :: 1
 
 FONT_COLOR :: rl.RAYWHITE
-BORDER_COLOR :: rl.RAYWHITE
-BOX_BACKGROUND_COLOR :: rl.GRAY
+BORDER_COLOR :: rl.BLACK
+BOX_BACKGROUND_COLOR :: rl.BLACK
 SELECTED_COLOR :: rl.BLUE
 
 MPD_HOST :: "localhost"
@@ -110,7 +110,7 @@ draw_grid :: proc(window: ^Window, grid_data: ^Gui_Data) {
       }
       if selected.x == i32(col_ix) && selected.y == i32(row_ix) {
         border_color = SELECTED_COLOR
-        rl.DrawRectangleRec(rect_inner, rl.Fade(SELECTED_COLOR, 0.2))
+        rl.DrawRectangleRec(rect_inner, rl.Fade(SELECTED_COLOR, 0.35))
       } else {
         border_color = BORDER_COLOR
       }
