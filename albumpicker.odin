@@ -9,13 +9,14 @@ import "core:strings"
 import "core:thread"
 
 GRID_ROWS :: 4
-GRID_COLS :: 7
+GRID_COLS :: 4
 FONT_SIZE :: 20
 BORDER_THICKNESS :: 2
 
 FONT_COLOR :: rl.RAYWHITE
-BORDER_COLOR :: rl.BLACK
-BOX_BACKGROUND_COLOR :: rl.BLACK
+BORDER_COLOR :: rl.RAYWHITE
+BOX_BACKGROUND_COLOR :: rl.LIGHTGRAY
+BOX_TEXT_BACKGROUND_COLOR :: rl.BLACK
 SELECTED_COLOR :: rl.BLUE
 
 MPD_HOST :: "localhost"
@@ -186,7 +187,7 @@ draw_box_text_content :: proc(artist: string, album_name: string, box: rl.Rectan
   dash_x := box.x + (box.width - dash_measure.x) / 2
   album_x := box.x + (box.width - album_measure.x) / 2
 
-  rl.DrawRectangleRec(box, rl.Fade(BOX_BACKGROUND_COLOR, 0.7))
+  rl.DrawRectangleRec(box, rl.Fade(BOX_TEXT_BACKGROUND_COLOR, 0.7))
   rl.DrawTextEx(font^, cs_artist, [2]f32{artist_x, text_y}, artist_size, spacing, FONT_COLOR)
   rl.DrawTextEx(font^, "-", [2]f32{dash_x, text_y + artist_measure.y}, dash_size, spacing, FONT_COLOR)
   rl.DrawTextEx(font^, cs_album, [2]f32{album_x, text_y + artist_measure.y + dash_measure.y}, album_size, spacing, FONT_COLOR)
@@ -374,7 +375,7 @@ main :: proc() {
     }
 
     // Setup: Initialize the raylib window and context
-    window := Window{"mpd_nowplaying", 1400 * 1.75, 1400, 144, rl.ConfigFlags{.WINDOW_RESIZABLE}}
+    window := Window{"albumpicker", 1000, 1000, 144, rl.ConfigFlags{.WINDOW_RESIZABLE}}
 
     rl.SetTraceLogLevel(rl.TraceLogLevel.NONE)
     rl.InitWindow(window.width, window.height, window.name)
