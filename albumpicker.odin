@@ -284,7 +284,6 @@ handle_search :: proc(grid_data: ^Gui_Data) {
   if backspace && state.index > 0 {
     pop(&state.query)
     reset_uris(grid_data)
-    // FIXME: Replaying the search is shit but it's quick enough surprisingly
     query_s := utf8.runes_to_string(state.query[:])
     grid_data.uris^ = db.filter_by_album_artist(grid_data.albums, grid_data.uris^, query_s)
     delete(query_s)
