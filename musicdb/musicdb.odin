@@ -6,6 +6,8 @@ import     "core:slice"
 import     "core:math/rand"
 import     "core:unicode"
 import     "core:unicode/utf8"
+import     "core:text/regex"
+import     "core:fmt"
 
 Album :: struct {
   name : string,
@@ -131,14 +133,25 @@ shuffle :: proc(uris: []string) {
   rand.shuffle(uris)
 }
 
-filter_by_album_artist :: proc(db: ^Album_Map, uris: []string, match: rune, index: int) -> []string {
-  char := unicode.to_lower(match)
+filter_by_album_artist :: proc(db: ^Album_Map, uris: []string, query: string) -> []string {
+  pattern_string := fmt.aprintf("(^|\\b)%s", query)
+  pattern, _err := regex.create(pattern_string, {.Case_Insensitive})
+  defer {
+    regex.destroy_regex(pattern)
+    delete(pattern_string)
+  }
   matches := 0
   for uri in uris {
-    artist := db[uri].artist_lower
-    album := db[uri].name_lower
-    if (index < len(artist) && utf8.rune_at_pos(artist, index) == char)  ||
-       (index < len(album) && utf8.rune_at_pos(album, index) == char) {
+    artist_cap, artist_success := regex.match_and_allocate_capture(pattern, db[uri].artist)
+    regex.destroy_capture(artist_cap)
+    if artist_success {
+      uris[matches] = uri
+      matches += 1
+      continue
+    }
+    album_cap, album_success := regex.match_and_allocate_capture(pattern, db[uri].name)
+    regex.destroy_capture(album_cap)
+    if album_success {
       uris[matches] = uri
       matches += 1
     }
