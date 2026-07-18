@@ -5,7 +5,7 @@ Simple mpd album picker
 
 **HJKL/WASD/Arrow keys:** Navigation
 
-**Q:** Quit
+**Q/ESCAPE:** Quit
 
 **Space/Enter:** Play album
 
@@ -15,14 +15,14 @@ Simple mpd album picker
 
 **R:** Shuffle ordering
 
-**F:** Start search mode
+**CTRL+F:** Start search mode
 
-**ESC:** Reset search
+**C:** Reset search
 
 ### In search mode:
 Naively searches album and artist. No misspellings.
 
-**ESC/Enter:** Exit search
+**ESC/Enter/CTRL+F:** Exit search
 
 
 ## Preview

@@ -9,9 +9,14 @@ import "core:strings"
 import "core:thread"
 
 GRID_ROWS :: 4
-GRID_COLS :: 4
+GRID_COLS :: 5
 FONT_SIZE :: 20
 BORDER_THICKNESS :: 2
+
+// Apparently raylib doesn't recognize setxkbmap swapcaps
+// Uncomment to use the normal left control
+// CTRL_KEY :: rl.KeyboardKey.LEFT_CONTROL
+CTRL_KEY :: rl.KeyboardKey.CAPS_LOCK
 
 FONT_COLOR :: rl.RAYWHITE
 BORDER_COLOR :: rl.RAYWHITE
@@ -416,6 +421,8 @@ main :: proc() {
       sort_reverse = false,
     }
 
+    ctrl_held := false
+
     search_mode := false
     search_state: Search_State
 
@@ -444,7 +451,7 @@ main :: proc() {
           enqueue_album(conn, &grid_data)
         } else if rl.IsKeyPressed(.C) {
           reset_uris(&grid_data)
-        } else if rl.IsKeyPressed(.F) {
+        } else if rl.IsKeyPressed(.F) && ctrl_held {
           search_state = Search_State{
             index = 0
           }
@@ -452,7 +459,7 @@ main :: proc() {
         }
         handle_navigation(&grid_data)
       } else {
-        if(rl.IsKeyPressed(.ENTER) || rl.IsKeyPressed(.ESCAPE) || (rl.IsKeyPressed(.F) && rl.IsKeyPressed(.LEFT_CONTROL))) {
+        if(rl.IsKeyPressed(.ENTER) || rl.IsKeyPressed(.ESCAPE) || (rl.IsKeyPressed(.F) && ctrl_held)) {
           delete(search_state.query)
           search_mode = false
           if (len(grid_data.uris) == 0) {
@@ -468,6 +475,13 @@ main :: proc() {
       }
       if rl.IsKeyReleased(rl.KeyboardKey.LEFT_SHIFT) {
         grid_data.render_text = false
+      }
+
+      if rl.IsKeyPressed(CTRL_KEY) {
+        ctrl_held = true
+      }
+      if rl.IsKeyReleased(CTRL_KEY) {
+        ctrl_held = false
       }
 
       // Push image tasks to task pool. Preload 2 rows above and 2 below visible grid
