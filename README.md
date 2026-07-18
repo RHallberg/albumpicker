@@ -9,6 +9,8 @@ Simple mpd album picker
 
 **Space/Enter:** Play album
 
+**CTRL+Space/Enter:** Append album to queue
+
 **Shift:** Show Titles
 
 **TAB:** Toggle desc/asc sorting

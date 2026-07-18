@@ -336,7 +336,7 @@ move_selected :: proc(direction: Direction, grid_data: ^Gui_Data) {
   selected.y = new_y
 }
 
-enqueue_album :: proc (conn: ^mpd.MPD_Connection, grid_data: ^Gui_Data) {
+enqueue_album :: proc (conn: ^mpd.MPD_Connection, grid_data: ^Gui_Data, append_to_queue: bool) {
   selected := grid_data.selected
   position := (int(selected.y) * GRID_COLS) + int(selected.x) + grid_data.offset
   if position >= len(grid_data.uris) {
@@ -346,6 +346,10 @@ enqueue_album :: proc (conn: ^mpd.MPD_Connection, grid_data: ^Gui_Data) {
   c_uri := strings.clone_to_cstring(uri)
   defer delete(c_uri)
 
+  if append_to_queue {
+    mpd.mpd_run_add(conn, c_uri)
+    return
+  }
   mpd.mpd_run_clear(conn)
   mpd.mpd_run_add(conn, c_uri)
   mpd.mpd_run_play(conn)
@@ -521,7 +525,11 @@ main :: proc() {
         if rl.IsKeyPressed(rl.KeyboardKey.Q) || rl.IsKeyPressed(rl.KeyboardKey.ESCAPE) {
           break
         } else if rl.IsKeyPressed(.SPACE) || rl.IsKeyPressed(.ENTER) {
-          enqueue_album(conn, &grid_data)
+          append_to_queue := false
+          if ctrl_held {
+            append_to_queue = true
+          }
+          enqueue_album(conn, &grid_data, append_to_queue)
         } else if rl.IsKeyPressed(.C) {
           grid_data.search_state.index = 0
           if grid_data.search_state.query != nil {
