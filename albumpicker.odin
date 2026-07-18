@@ -6,11 +6,12 @@ import mpd "mpd"
 import rl  "vendor:raylib"
 import db "musicdb"
 import "core:strings"
+import "core:unicode/utf8"
 import "core:thread"
 
 GRID_ROWS :: 4
 GRID_COLS :: 5
-FONT_SIZE :: 20
+FONT_SIZE :: 15
 BORDER_THICKNESS :: 2
 
 // Apparently raylib doesn't recognize setxkbmap swapcaps
@@ -43,7 +44,9 @@ Gui_Data :: struct {
   albumart: ^Albumart_Map,
   albumart_cache: ^Albumart_Cache,
   selected: ^Box,
+  search_state: ^Search_State,
   font: ^rl.Font,
+  font_large: ^rl.Font,
   render_text: bool,
   sort_reverse : bool,
 }
@@ -76,6 +79,7 @@ Albumart_Cache_Data :: struct {
 }
 
 Search_State :: struct {
+  search_mode: bool,
   query: [dynamic]rune,
   index: int
 }
@@ -198,6 +202,60 @@ draw_box_text_content :: proc(artist: string, album_name: string, box: rl.Rectan
   rl.DrawTextEx(font^, cs_album, [2]f32{album_x, text_y + artist_measure.y + dash_measure.y}, album_size, spacing, FONT_COLOR)
 }
 
+draw_search_box :: proc(window: ^Window, grid_data: ^Gui_Data) {
+  search := grid_data.search_state
+  font := grid_data.font_large
+  search_font_size : f32 = FONT_SIZE * 2
+  box_height : f32 = search_font_size + 4
+  box_width : f32 = f32(window.width) / 2
+  box_y := f32(window.height)/4 - ((box_height + f32(BORDER_THICKNESS))/2)
+  box_x := f32(window.width)/2  - ((box_width + f32(BORDER_THICKNESS))/2)
+  rect := rl.Rectangle{box_x, box_y, box_width, box_height}
+  border_rect := rl.Rectangle{
+    box_x - BORDER_THICKNESS,
+    box_y - BORDER_THICKNESS,
+    box_width + BORDER_THICKNESS,
+    box_height + BORDER_THICKNESS
+  }
+  rl.DrawRectangleRec(rect, BOX_TEXT_BACKGROUND_COLOR)
+  rl.DrawRectangleLinesEx(border_rect, BORDER_THICKNESS, BORDER_COLOR)
+  prompt : cstring = "SEARCH:"
+  prompt_size := rl.MeasureTextEx(font^, prompt, search_font_size, 2.0) + 8
+  rl.DrawTextEx(font^, prompt, [2]f32{rect.x+6, rect.y+2}, search_font_size, 2.0, FONT_COLOR)
+  if len(search.query) > 0 {
+    query_s : cstring = nil
+    query_r := search.query[:]
+    defer{
+      if query_s != nil {
+        delete(query_s)
+      }
+    }
+    for i := len(search.query); i >=  0 ; i -= 1 {
+      query := utf8.runes_to_string(query_r)
+      query_c := strings.clone_to_cstring(query)
+      query_size := rl.MeasureTextEx(font^, query_c, search_font_size, 2.0)
+      if query_size.x + prompt_size.x <= box_width {
+        query_s = strings.clone_to_cstring(query)
+        delete(query)
+        delete(query_c)
+        break
+      }
+      query_r = search.query[:i]
+      delete(query)
+      delete(query_c)
+    }
+
+    rl.DrawTextEx(
+      font^,
+      query_s,
+      [2]f32{rect.x+prompt_size.x, rect.y+2},
+      search_font_size,
+      2.0,
+      FONT_COLOR
+    )
+  }
+}
+
 handle_navigation :: proc(grid_data: ^Gui_Data) {
   if rl.IsKeyPressed(.K) || rl.IsKeyPressed(.W) || rl.IsKeyPressed(.UP) {
     move_selected(Direction.Up, grid_data)
@@ -211,12 +269,12 @@ handle_navigation :: proc(grid_data: ^Gui_Data) {
     sort_order(grid_data)
   } else if rl.IsKeyPressed(.R) {
     grid_data.offset = 0
-    reset_uris(grid_data)
     db.shuffle(grid_data.uris^)
   }
 }
 
-handle_search :: proc(grid_data: ^Gui_Data, state: ^Search_State) {
+handle_search :: proc(grid_data: ^Gui_Data) {
+  state := grid_data.search_state
   backspace := rl.IsKeyPressed(.BACKSPACE)
   char := rl.GetCharPressed()
   if u8(char) == 0 && !backspace {
@@ -397,15 +455,31 @@ main :: proc() {
         i32(len(font_data)),
         FONT_SIZE,
         nil,
-        17000,
+        8900,
+    )
+    font_large := rl.LoadFontFromMemory(
+        ".ttf",
+        raw_data(font_data),
+        i32(len(font_data)),
+        FONT_SIZE * 4,
+        nil,
+        1000,
     )
     offset := 0
     selected := Box{0,0}
     uris := db.get_uris(&db_m)
     db.sort_by_artist(&db_m, uris)
+    search_state := Search_State{
+      query = nil,
+      index = 0,
+      search_mode = false,
+    }
     defer {
       delete(uris)
       rl.UnloadFont(font)
+      if search_state.query != nil {
+        delete(search_state.query)
+      }
     }
 
     // Main graphics-context
@@ -415,16 +489,15 @@ main :: proc() {
       albums = &db_m,
       albumart = &albumart_m,
       albumart_cache = &art_cache,
+      search_state = &search_state,
       selected = &selected,
       font = &font,
+      font_large = &font_large,
       render_text = false,
       sort_reverse = false,
     }
 
     ctrl_held := false
-
-    search_mode := false
-    search_state: Search_State
 
     // Graphics loop
     for {
@@ -444,32 +517,35 @@ main :: proc() {
         window.height = rl.GetScreenHeight()
       }
 
-      if !search_mode {
+      if !grid_data.search_state.search_mode {
         if rl.IsKeyPressed(rl.KeyboardKey.Q) || rl.IsKeyPressed(rl.KeyboardKey.ESCAPE) {
           break
         } else if rl.IsKeyPressed(.SPACE) || rl.IsKeyPressed(.ENTER) {
           enqueue_album(conn, &grid_data)
         } else if rl.IsKeyPressed(.C) {
+          grid_data.search_state.index = 0
+          if grid_data.search_state.query != nil {
+            delete(grid_data.search_state.query)
+            grid_data.search_state.query = make([dynamic]rune)
+          }
           reset_uris(&grid_data)
         } else if rl.IsKeyPressed(.F) && ctrl_held {
-          search_state = Search_State{
-            index = 0
+          if grid_data.search_state.query == nil {
+            grid_data.search_state.query = make([dynamic]rune)
           }
-          search_mode = true
+          grid_data.search_state.search_mode = true
         }
         handle_navigation(&grid_data)
       } else {
         if(rl.IsKeyPressed(.ENTER) || rl.IsKeyPressed(.ESCAPE) || (rl.IsKeyPressed(.F) && ctrl_held)) {
-          delete(search_state.query)
-          search_mode = false
+          grid_data.search_state.search_mode = false
           if (len(grid_data.uris) == 0) {
             reset_uris(&grid_data)
           }
         } else {
-          handle_search(&grid_data, &search_state)
+          handle_search(&grid_data)
         }
       }
-
       if rl.IsKeyPressed(rl.KeyboardKey.LEFT_SHIFT) {
         grid_data.render_text = true
       }
@@ -544,6 +620,9 @@ main :: proc() {
 
       rl.ClearBackground(rl.RAYWHITE)
       draw_grid(&window, &grid_data)
+      if(grid_data.search_state.search_mode){
+        draw_search_box(&window, &grid_data)
+      }
 
       rl.EndDrawing()
     }
