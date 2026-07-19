@@ -285,20 +285,23 @@ handle_search :: proc(grid_data: ^Gui_Data) {
     pop(&state.query)
     reset_uris(grid_data)
     // FIXME: Replaying the search is shit but it's quick enough surprisingly
-    for i := 0; i < len(state.query); i += 1 {
-      grid_data.uris^ = db.filter_by_album_artist(grid_data.albums, grid_data.uris^, state.query[i], i)
-    }
+    sub_q := utf8.runes_to_string(state.query[:])
+    grid_data.uris^ = db.filter_by_album_artist(grid_data.albums, grid_data.uris^, sub_q)
+    delete(sub_q)
     state.index -= 1
     return
   } else if backspace {
     return
   }
 
+  append(&state.query, char)
+  query := utf8.runes_to_string(state.query[:])
+  defer delete(query)
+
   grid_data.offset = 0
   grid_data.selected.x = 0
   grid_data.selected.y = 0
-  grid_data.uris^ = db.filter_by_album_artist(grid_data.albums, grid_data.uris^, char, state.index)
-  append(&state.query, char)
+  grid_data.uris^ = db.filter_by_album_artist(grid_data.albums, grid_data.uris^, query)
   state.index += 1
 }
 

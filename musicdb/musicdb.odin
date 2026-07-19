@@ -6,12 +6,14 @@ import     "core:slice"
 import     "core:math/rand"
 import     "core:unicode"
 import     "core:unicode/utf8"
+import     "core:fmt"
 
 Album :: struct {
   name : string,
   name_lower : string,
   artist : string,
   artist_lower : string,
+  search_string : string,
   full_uri : string,
 }
 Album_Map :: map[string]Album
@@ -29,6 +31,7 @@ db_free :: proc(db: ^Album_Map) {
       delete(album.artist)
       delete(album.artist_lower)
       delete(album.full_uri)
+      delete(album.search_string)
   }
   delete(db^)
 }
@@ -49,12 +52,14 @@ add_song :: proc(db: ^Album_Map, song: ^mpd.MPD_Song) {
     name_lower := strings.to_lower(name_s)
     artist_s := strings.clone_from_cstring(artist)
     artist_lower := strings.to_lower(artist_s)
+    search_string := fmt.aprintf("%s %s", name_lower, artist_lower)
 
     album := Album{
             name   = name_s,
             name_lower = name_lower,
             artist = artist_s,
             artist_lower = artist_lower,
+            search_string = search_string,
             full_uri = uri
     }
 
@@ -131,14 +136,11 @@ shuffle :: proc(uris: []string) {
   rand.shuffle(uris)
 }
 
-filter_by_album_artist :: proc(db: ^Album_Map, uris: []string, match: rune, index: int) -> []string {
-  char := unicode.to_lower(match)
+filter_by_album_artist :: proc(db: ^Album_Map, uris: []string, query: string) -> []string {
   matches := 0
   for uri in uris {
-    artist := db[uri].artist_lower
-    album := db[uri].name_lower
-    if (index < len(artist) && utf8.rune_at_pos(artist, index) == char)  ||
-       (index < len(album) && utf8.rune_at_pos(album, index) == char) {
+    search_string := db[uri].search_string
+    if strings.contains(search_string, query) {
       uris[matches] = uri
       matches += 1
     }
