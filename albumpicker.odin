@@ -71,23 +71,6 @@ Box :: struct {
   y : i32,
 }
 
-handle_navigation :: proc(grid_data: ^Gui_Data) {
-  if rl.IsKeyPressed(.K) || rl.IsKeyPressed(.W) || rl.IsKeyPressed(.UP) {
-    move_selected(Direction.Up, grid_data)
-  } else if rl.IsKeyPressed(.J) || rl.IsKeyPressed(.S) || rl.IsKeyPressed(.DOWN) {
-    move_selected(Direction.Down, grid_data)
-  } else if rl.IsKeyPressed(.H) || rl.IsKeyPressed(.A) || rl.IsKeyPressed(.LEFT) {
-    move_selected(Direction.Left, grid_data)
-  } else if rl.IsKeyPressed(.L) || rl.IsKeyPressed(.D) || rl.IsKeyPressed(.RIGHT) {
-    move_selected(Direction.Right, grid_data)
-  } else if rl.IsKeyPressed(.TAB) {
-    sort_order(grid_data)
-  } else if rl.IsKeyPressed(.R) {
-    grid_data.offset = 0
-    db.shuffle(grid_data.uris^)
-  }
-}
-
 handle_search :: proc(grid_data: ^Gui_Data) {
   state := grid_data.search_state
   backspace := rl.IsKeyPressed(.BACKSPACE)
@@ -320,6 +303,8 @@ main :: proc() {
     }
 
     ctrl_held := false
+    shift_held := false
+    should_exit := false
 
     // Graphics loop
     for {
@@ -339,44 +324,13 @@ main :: proc() {
         window.height = rl.GetScreenHeight()
       }
 
-      if !grid_data.search_state.search_mode {
-        if rl.IsKeyPressed(rl.KeyboardKey.Q) || rl.IsKeyPressed(rl.KeyboardKey.ESCAPE) {
-          break
-        } else if rl.IsKeyPressed(.SPACE) || rl.IsKeyPressed(.ENTER) {
-          append_to_queue := false
-          if ctrl_held {
-            append_to_queue = true
-          }
-          enqueue_album(conn, &grid_data, append_to_queue)
-        } else if rl.IsKeyPressed(.C) {
-          grid_data.search_state.index = 0
-          if grid_data.search_state.query != nil {
-            delete(grid_data.search_state.query)
-            grid_data.search_state.query = make([dynamic]rune)
-          }
-          reset_uris(&grid_data)
-        } else if rl.IsKeyPressed(.F) && ctrl_held {
-          if grid_data.search_state.query == nil {
-            grid_data.search_state.query = make([dynamic]rune)
-          }
-          grid_data.search_state.search_mode = true
-        }
-        handle_navigation(&grid_data)
-      } else {
-        if(rl.IsKeyPressed(.ENTER) || rl.IsKeyPressed(.ESCAPE) || (rl.IsKeyPressed(.F) && ctrl_held)) {
-          grid_data.search_state.search_mode = false
-          if (len(grid_data.uris) == 0) {
-            reset_uris(&grid_data)
-          }
-        } else {
-          handle_search(&grid_data)
-        }
-      }
       if rl.IsKeyPressed(rl.KeyboardKey.LEFT_SHIFT) {
         grid_data.render_text = true
+        shift_held = true
       }
       if rl.IsKeyReleased(rl.KeyboardKey.LEFT_SHIFT) {
         grid_data.render_text = false
+        shift_held = false
       }
 
       if rl.IsKeyPressed(CTRL_KEY) {
@@ -384,6 +338,79 @@ main :: proc() {
       }
       if rl.IsKeyReleased(CTRL_KEY) {
         ctrl_held = false
+      }
+
+      // Don't reset search state same frame
+      search_toggled := false
+      // Input handling
+      for kb in keybindings {
+          if !rl.IsKeyPressed(kb.key) {
+              continue
+          }
+
+          if shift_held != kb.shift || ctrl_held != kb.ctrl {
+              continue
+          }
+
+          if(grid_data.search_state.search_mode && kb.action == .EXIT_SEARCH && !search_toggled){
+            fmt.println("Search mode deactivated")
+            grid_data.search_state.search_mode = false
+            if (len(grid_data.uris) == 0) {
+              reset_uris(&grid_data)
+            }
+            search_toggled = true
+            continue
+          } else if grid_data.search_state.search_mode {
+            continue
+          }
+
+          switch kb.action {
+          case .EXIT:
+                should_exit = true
+          case .ADD_ALBUM:
+              enqueue_album(conn, &grid_data, false)
+          case .ENQUEUE_ALBUM:
+              enqueue_album(conn, &grid_data, true)
+          case .RESET_GRID:
+            grid_data.search_state.index = 0
+            if grid_data.search_state.query != nil {
+              delete(grid_data.search_state.query)
+              grid_data.search_state.query = make([dynamic]rune)
+            }
+            reset_uris(&grid_data)
+          case .RANDOMIZE_GRID:
+            grid_data.offset = 0
+            db.shuffle(grid_data.uris^)
+          case .SORT_GRID:
+            sort_order(&grid_data)
+          case .SEARCH:
+            if(search_toggled){
+              continue
+            }
+            fmt.println("Search mode activated")
+            if grid_data.search_state.query == nil {
+              grid_data.search_state.query = make([dynamic]rune)
+            }
+            grid_data.search_state.search_mode = true
+            search_toggled = true
+          case .EXIT_SEARCH:
+            continue
+          case .MOVE_UP:
+              move_selected(.Up, &grid_data)
+          case .MOVE_DOWN:
+              move_selected(.Down, &grid_data)
+          case .MOVE_LEFT:
+              move_selected(.Left, &grid_data)
+          case .MOVE_RIGHT:
+              move_selected(.Right, &grid_data)
+          }
+      }
+      if should_exit {
+        break
+      }
+
+      if grid_data.search_state.search_mode {
+        handle_search(&grid_data)
       }
 
       // Push image tasks to task pool. Preload 2 rows above and 2 below visible grid
