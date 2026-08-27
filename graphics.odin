@@ -60,8 +60,6 @@ draw_box_image_content :: proc(texture: ^rl.Texture, box: rl.Rectangle) {
   rl.DrawTexturePro(texture^, source_rec, box, rl.Vector2{0, 0}, 0, rl.WHITE)
 }
 
-// Greedily breaks text into lines that each fit within max_width.
-// Caller owns the returned lines and array: delete each line, then the array itself.
 wrap_text :: proc(font: ^rl.Font, text: string, font_size: f32, spacing: f32, max_width: f32) -> [dynamic]string {
   lines := make([dynamic]string)
   words := strings.split(text, " ")

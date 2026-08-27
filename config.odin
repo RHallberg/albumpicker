@@ -4,7 +4,7 @@ import rl  "vendor:raylib"
 // Layout
 GRID_ROWS :: 4
 GRID_COLS :: 4
-FONT_SIZE :: 18
+FONT_SIZE :: 20
 BORDER_THICKNESS :: 2
 TEXT_PADDING :: 8
 
