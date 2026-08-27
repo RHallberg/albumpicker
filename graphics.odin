@@ -142,9 +142,9 @@ draw_search_box :: proc(window: ^Window, grid_data: ^Gui_Data) {
   font := grid_data.font_large
   search_font_size : f32 = FONT_SIZE * 2
   box_height : f32 = search_font_size + 4
-  box_width : f32 = f32(window.width) / 2
-  box_y := f32(window.height)/4 - ((box_height + f32(BORDER_THICKNESS))/2)
-  box_x := f32(window.width)/2  - ((box_width + f32(BORDER_THICKNESS))/2)
+  box_width : f32 = f32(window.width) - f32(BORDER_THICKNESS)
+  box_y : f32 = 0
+  box_x : f32 = 0
   rect := rl.Rectangle{box_x, box_y, box_width, box_height}
   border_rect := rl.Rectangle{
     box_x - BORDER_THICKNESS,
@@ -153,13 +153,13 @@ draw_search_box :: proc(window: ^Window, grid_data: ^Gui_Data) {
     box_height + BORDER_THICKNESS
   }
 
-  rl.DrawRectangleRec(rect, BOX_TEXT_BACKGROUND_COLOR)
-  rl.DrawRectangleLinesEx(border_rect, BORDER_THICKNESS, BORDER_COLOR)
+  rl.DrawRectangleRec(rect, rl.Fade(SEARCH_BOX_BACKGROUND_COLOR, 0.8))
+  rl.DrawRectangleLinesEx(border_rect, BORDER_THICKNESS, SELECTED_COLOR)
 
   prompt : cstring = "SEARCH:"
 
   prompt_size := rl.MeasureTextEx(font^, prompt, search_font_size, 2.0) + 8
-  rl.DrawTextEx(font^, prompt, [2]f32{rect.x+6, rect.y+2}, search_font_size, 2.0, FONT_COLOR)
+  rl.DrawTextEx(font^, prompt, [2]f32{rect.x+6, rect.y+2}, search_font_size, 2.0, SELECTED_COLOR)
   if len(search.query) > 0 {
     query_s : cstring = nil
     query_r := search.query[:]

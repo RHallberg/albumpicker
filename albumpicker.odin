@@ -272,7 +272,7 @@ main :: proc() {
         i32(len(font_data)),
         FONT_SIZE * 4,
         nil,
-        1000,
+        20000,
     )
     offset := 0
     selected := Box{0,0}
