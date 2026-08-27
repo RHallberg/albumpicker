@@ -142,7 +142,7 @@ draw_search_box :: proc(window: ^Window, grid_data: ^Gui_Data) {
   font := grid_data.font_large
   search_font_size : f32 = FONT_SIZE * 2
   box_height : f32 = search_font_size + 4
-  box_width : f32 = f32(window.width) - f32(BORDER_THICKNESS)
+  box_width : f32 = f32(window.width)
   box_y : f32 = 0
   box_x : f32 = 0
   rect := rl.Rectangle{box_x, box_y, box_width, box_height}
