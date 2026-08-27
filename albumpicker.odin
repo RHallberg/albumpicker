@@ -250,10 +250,10 @@ main :: proc() {
     window := Window{"albumpicker", 1000, 1000, 144, rl.ConfigFlags{.WINDOW_RESIZABLE}}
 
     rl.SetTraceLogLevel(rl.TraceLogLevel.NONE)
+    rl.SetConfigFlags(window.control_flags)
     rl.InitWindow(window.width, window.height, window.name)
     defer rl.CloseWindow()
 
-    rl.SetWindowState(window.control_flags)
     rl.SetTargetFPS(window.fps)
 
     // Setup: Initialize the app context
