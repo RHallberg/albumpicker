@@ -1,6 +1,6 @@
 package albumpicker
 
-import     "core:fmt"
+import "core:fmt"
 import "core:time"
 import mpd "mpd"
 import rl  "vendor:raylib"
@@ -9,7 +9,9 @@ import "core:strings"
 import "core:unicode/utf8"
 import "core:thread"
 
-ART_CACHE_SIZE :: GRID_ROWS * GRID_COLS * 3
+MAX_ROWS :: 10
+MAX_COLS :: 10
+ART_CACHE_SIZE :: MAX_ROWS * MAX_COLS * 3
 
 Window :: struct {
   name:          cstring,
@@ -31,6 +33,8 @@ Gui_Data :: struct {
   font_large: ^rl.Font,
   render_text: bool,
   sort_reverse : bool,
+  cols : int,
+  rows : int,
 }
 Albumart_Map :: map[string]Albumart_Data
 Albumart_Data :: struct {
@@ -112,24 +116,24 @@ move_selected :: proc(direction: Direction, grid_data: ^Gui_Data) {
   switch direction {
     case .Up:
       if selected.y -1 < 0 {
-        if grid_data.offset >= GRID_ROWS + 1{
-         new_offset -= GRID_COLS
+        if grid_data.offset >= grid_data.rows + 1{
+         new_offset -= grid_data.cols
         }
         break
       }
       new_y -= 1
     case .Down:
-      if grid_data.selected.y + 1 >= GRID_ROWS && grid_data.offset + GRID_COLS * GRID_ROWS <= len(grid_data.uris) {
-        new_offset += GRID_COLS
+      if grid_data.selected.y + 1 >= i32(grid_data.rows) && grid_data.offset + (grid_data.cols) * (grid_data.rows) <= len(grid_data.uris) {
+        new_offset += grid_data.cols
         break
       }
       new_y += 1
     case .Left:
-      new_x = (selected.x - 1 + GRID_COLS) % GRID_COLS
+      new_x = (selected.x - 1 + i32(grid_data.cols)) % i32(grid_data.cols)
     case .Right:
-      new_x = (selected.x + 1) % GRID_COLS
+      new_x = (selected.x + 1) % i32(grid_data.cols)
   }
-  if (int(new_y) * GRID_COLS) + int(new_x) + new_offset >= len(grid_data.uris) {
+  if (int(new_y) * grid_data.cols) + int(new_x) + new_offset >= len(grid_data.uris) {
     return
   }
   grid_data.offset = new_offset
@@ -139,7 +143,7 @@ move_selected :: proc(direction: Direction, grid_data: ^Gui_Data) {
 
 enqueue_album :: proc (conn: ^mpd.MPD_Connection, grid_data: ^Gui_Data, append_to_queue: bool) {
   selected := grid_data.selected
-  position := (int(selected.y) * GRID_COLS) + int(selected.x) + grid_data.offset
+  position := (int(selected.y) * grid_data.cols) + int(selected.x) + grid_data.offset
   if position >= len(grid_data.uris) {
     return
   }
@@ -300,6 +304,8 @@ main :: proc() {
       font_large = &font_large,
       render_text = false,
       sort_reverse = false,
+      rows = GRID_ROWS,
+      cols = GRID_COLS,
     }
 
     ctrl_held := false
@@ -353,7 +359,6 @@ main :: proc() {
           }
 
           if(grid_data.search_state.search_mode && kb.action == .EXIT_SEARCH && !search_toggled){
-            fmt.println("Search mode deactivated")
             grid_data.search_state.search_mode = false
             if (len(grid_data.uris) == 0) {
               reset_uris(&grid_data)
@@ -387,7 +392,6 @@ main :: proc() {
             if(search_toggled){
               continue
             }
-            fmt.println("Search mode activated")
             if grid_data.search_state.query == nil {
               grid_data.search_state.query = make([dynamic]rune)
             }
@@ -396,13 +400,29 @@ main :: proc() {
           case .EXIT_SEARCH:
             continue
           case .MOVE_UP:
-              move_selected(.Up, &grid_data)
+            move_selected(.Up, &grid_data)
           case .MOVE_DOWN:
-              move_selected(.Down, &grid_data)
+            move_selected(.Down, &grid_data)
           case .MOVE_LEFT:
-              move_selected(.Left, &grid_data)
+            move_selected(.Left, &grid_data)
           case .MOVE_RIGHT:
-              move_selected(.Right, &grid_data)
+            move_selected(.Right, &grid_data)
+          case .INCREASE_ROWS:
+            if(grid_data.rows < MAX_ROWS){
+              grid_data.rows += 1
+            }
+          case .INCREASE_COLS:
+            if(grid_data.cols < MAX_COLS){
+              grid_data.cols += 1
+            }
+          case .DECREASE_ROWS:
+            if(grid_data.rows > 1){
+              grid_data.rows -= 1
+            }
+          case .DECREASE_COLS:
+            if(grid_data.cols > 1){
+              grid_data.cols -= 1
+            }
           }
       }
       if should_exit {
@@ -414,7 +434,7 @@ main :: proc() {
       }
 
       // Push image tasks to task pool. Preload 2 rows above and 2 below visible grid
-      for i := 0 - GRID_COLS * 2; i < GRID_ROWS * GRID_COLS + (GRID_COLS * 2); i += 1 {
+      for i := 0 - grid_data.cols * 2; i < grid_data.cols * grid_data.cols + (grid_data.cols * 2); i += 1 {
         if (i + grid_data.offset < 0) {
           continue
         }
@@ -543,7 +563,7 @@ cache_put :: proc(grid_data: ^Gui_Data, uri: string) -> (evicted: string, any_ev
 
 // Helper to check that we do not evict visible images from the cache
 img_visible :: proc(grid_data: ^Gui_Data, uri: string) -> bool {
-  for i in 0..<(GRID_COLS * GRID_ROWS) {
+  for i in 0..<(grid_data.cols * grid_data.rows) {
     if i+grid_data.offset < len(grid_data.uris) && uri == grid_data.uris[i+grid_data.offset] {
       return true
     }

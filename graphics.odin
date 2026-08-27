@@ -5,14 +5,14 @@ import "core:unicode/utf8"
 
 draw_grid :: proc(window: ^Window, grid_data: ^Gui_Data) {
   selected := grid_data.selected
-  box_width := f32(window.width) / f32(GRID_COLS)
-  box_height := f32(window.height) / f32(GRID_ROWS)
+  box_width := f32(window.width) / f32(grid_data.cols)
+  box_height := f32(window.height) / f32(grid_data.rows)
 
   i := 0
 
-  for row_ix: f32 = 0; row_ix < GRID_ROWS; row_ix += 1 {
+  for row_ix: f32 = 0; row_ix < f32(grid_data.rows); row_ix += 1 {
     y := box_height * row_ix
-    for col_ix: f32 = 0; col_ix < GRID_COLS; col_ix += 1 {
+    for col_ix: f32 = 0; col_ix < f32(grid_data.cols); col_ix += 1 {
       x := box_width * col_ix
       border_color: rl.Color
 

@@ -43,6 +43,10 @@ UserAction :: enum {
   MOVE_DOWN,
   MOVE_LEFT,
   MOVE_RIGHT,
+  INCREASE_ROWS,
+  INCREASE_COLS,
+  DECREASE_ROWS,
+  DECREASE_COLS,
 }
 
 
@@ -73,5 +77,8 @@ keybindings := []Keybind{
   {false, false, rl.KeyboardKey.L,      .MOVE_RIGHT},
   {false, false, rl.KeyboardKey.D,      .MOVE_RIGHT},
   {false, false, rl.KeyboardKey.RIGHT,  .MOVE_RIGHT},
+  {true, false,  rl.KeyboardKey.RIGHT,  .INCREASE_COLS},
+  {true, false,  rl.KeyboardKey.LEFT,   .DECREASE_COLS},
+  {true, false,  rl.KeyboardKey.UP,     .DECREASE_ROWS},
+  {true, false,  rl.KeyboardKey.DOWN,   .INCREASE_ROWS},
 }
-//TODO Add keybindings
