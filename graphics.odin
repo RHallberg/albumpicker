@@ -60,60 +60,83 @@ draw_box_image_content :: proc(texture: ^rl.Texture, box: rl.Rectangle) {
   rl.DrawTexturePro(texture^, source_rec, box, rl.Vector2{0, 0}, 0, rl.WHITE)
 }
 
-draw_box_text_content :: proc(artist: string, album_name: string, box: rl.Rectangle, font: ^rl.Font) {
-  cs_artist := strings.clone_to_cstring(strings.trim(artist, " \t\n\r"))
-  cs_album := strings.clone_to_cstring(strings.trim(album_name, " \t\n\r"))
-  defer {
-    delete(cs_artist)
-    delete(cs_album)
+// Greedily breaks text into lines that each fit within max_width.
+// Caller owns the returned lines and array: delete each line, then the array itself.
+wrap_text :: proc(font: ^rl.Font, text: string, font_size: f32, spacing: f32, max_width: f32) -> [dynamic]string {
+  lines := make([dynamic]string)
+  words := strings.split(text, " ")
+  defer delete(words)
+
+  line_start := 0
+  for i in 0..<len(words) {
+    candidate := strings.join(words[line_start:i+1], " ")
+    cs := strings.clone_to_cstring(candidate)
+    measure := rl.MeasureTextEx(font^, cs, font_size, spacing)
+    delete(cs)
+    delete(candidate)
+
+    if measure.x > max_width && i > line_start {
+      append(&lines, strings.join(words[line_start:i], " "))
+      line_start = i
+    }
   }
 
-  artist_size := f32(FONT_SIZE)
-  album_size := f32(FONT_SIZE)
-  dash_size := f32(FONT_SIZE)
+  if line_start < len(words) {
+    append(&lines, strings.join(words[line_start:], " "))
+  }
+
+  return lines
+}
+
+draw_box_text_content :: proc(artist: string, album_name: string, box: rl.Rectangle, font: ^rl.Font) {
+  trimmed_artist := strings.trim(artist, " \t\n\r")
+  trimmed_album := strings.trim(album_name, " \t\n\r")
 
   spacing : f32 = 2.0
-  min_size : f32 = 8.0
+  font_size := f32(FONT_SIZE)
+  max_width := box.width - TEXT_PADDING * 2
 
-  // Resize font until it fits within box. FIXME: Make less ugly for long album/artist names
-  for {
-      artist_measure := rl.MeasureTextEx(font^, cs_artist, artist_size, spacing)
-      album_measure := rl.MeasureTextEx(font^, cs_album, album_size, spacing)
-
-      changed := false
-
-      if artist_measure.x > box.width - 10 && artist_size > min_size {
-          artist_size -= 1
-          changed = true
-      }
-
-      if album_measure.x > box.width - 10 && album_size > min_size {
-          album_size -= 1
-          changed = true
-      }
-
-      if !changed {
-          break
-      }
+  artist_lines := wrap_text(font, trimmed_artist, font_size, spacing, max_width)
+  album_lines := wrap_text(font, trimmed_album, font_size, spacing, max_width)
+  defer {
+    for line in artist_lines do delete(line)
+    delete(artist_lines)
+    for line in album_lines do delete(line)
+    delete(album_lines)
   }
 
-  dash_size = max(artist_size, album_size)
+  dash_measure := rl.MeasureTextEx(font^, "-", font_size, spacing)
+  line_height := dash_measure.y
+  line_gap : f32 = 2.0
 
-  artist_measure := rl.MeasureTextEx(font^, cs_artist, artist_size, spacing)
-  dash_measure := rl.MeasureTextEx(font^, "-", dash_size, spacing)
-  album_measure := rl.MeasureTextEx(font^, cs_album, album_size, spacing)
-
-  total_height := artist_measure.y + dash_measure.y + album_measure.y + 10
-  text_y := box.y + (box.height - total_height) / 2
-
-  artist_x := box.x + (box.width - artist_measure.x) / 2
-  dash_x := box.x + (box.width - dash_measure.x) / 2
-  album_x := box.x + (box.width - album_measure.x) / 2
+  total_lines := len(artist_lines) + 1 + len(album_lines)
+  total_height := f32(total_lines) * line_height + f32(total_lines - 1) * line_gap
 
   rl.DrawRectangleRec(box, rl.Fade(BOX_TEXT_BACKGROUND_COLOR, 0.7))
-  rl.DrawTextEx(font^, cs_artist, [2]f32{artist_x, text_y}, artist_size, spacing, FONT_COLOR)
-  rl.DrawTextEx(font^, "-", [2]f32{dash_x, text_y + artist_measure.y}, dash_size, spacing, FONT_COLOR)
-  rl.DrawTextEx(font^, cs_album, [2]f32{album_x, text_y + artist_measure.y + dash_measure.y}, album_size, spacing, FONT_COLOR)
+
+  text_y := box.y + (box.height - total_height) / 2
+
+  for line in artist_lines {
+    cs := strings.clone_to_cstring(line)
+    defer delete(cs)
+    measure := rl.MeasureTextEx(font^, cs, font_size, spacing)
+    x := box.x + (box.width - measure.x) / 2
+    rl.DrawTextEx(font^, cs, [2]f32{x, text_y}, font_size, spacing, FONT_COLOR)
+    text_y += line_height + line_gap
+  }
+
+  dash_x := box.x + (box.width - dash_measure.x) / 2
+  rl.DrawTextEx(font^, "-", [2]f32{dash_x, text_y}, font_size, spacing, FONT_COLOR)
+  text_y += line_height + line_gap
+
+  for line in album_lines {
+    cs := strings.clone_to_cstring(line)
+    defer delete(cs)
+    measure := rl.MeasureTextEx(font^, cs, font_size, spacing)
+    x := box.x + (box.width - measure.x) / 2
+    rl.DrawTextEx(font^, cs, [2]f32{x, text_y}, font_size, spacing, FONT_COLOR)
+    text_y += line_height + line_gap
+  }
 }
 
 draw_search_box :: proc(window: ^Window, grid_data: ^Gui_Data) {
