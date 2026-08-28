@@ -110,7 +110,7 @@ draw_box_text_content :: proc(artist: string, album_name: string, box: rl.Rectan
   total_lines := len(artist_lines) + 1 + len(album_lines)
   total_height := f32(total_lines) * line_height + f32(total_lines - 1) * line_gap
 
-  rl.DrawRectangleRec(box, rl.Fade(BOX_TEXT_BACKGROUND_COLOR, 0.8))
+  rl.DrawRectangleRec(box, rl.Fade(BOX_TEXT_BACKGROUND_COLOR, 0.9))
 
   text_y := box.y + (box.height - total_height) / 2
 
@@ -145,41 +145,66 @@ draw_search_box :: proc(window: ^Window, grid_data: ^Gui_Data) {
   box_width : f32 = f32(window.width) / 1.5
   box_y : f32 = f32(window.height)/3 - box_height/2
   box_x : f32 = f32(window.width) / 6.0
+
   rect := rl.Rectangle{box_x, box_y, box_width, box_height}
   border_rect := rl.Rectangle{
     box_x - BORDER_THICKNESS,
     box_y - BORDER_THICKNESS,
-    box_width + BORDER_THICKNESS,
-    box_height + BORDER_THICKNESS
+    box_width + BORDER_THICKNESS * 2,
+    box_height + BORDER_THICKNESS * 2
   }
 
-  rl.DrawRectangleRec(rect, SEARCH_BOX_BACKGROUND_COLOR)
-  rl.DrawRectangleLinesEx(border_rect, BORDER_THICKNESS, SELECTED_COLOR)
+  roundness : f32 = 0.5
+  segments : i32 = 16
+
+  rl.DrawRectangleRounded(
+    border_rect,
+    roundness,
+    segments,
+    SELECTED_COLOR
+  )
+
+  rl.DrawRectangleRounded(
+    rect,
+    roundness,
+    segments,
+    SEARCH_BOX_BACKGROUND_COLOR
+  )
 
   prompt : cstring = "SEARCH:"
 
   prompt_size := rl.MeasureTextEx(font^, prompt, search_font_size, 2.0) + 8
-  rl.DrawTextEx(font^, prompt, [2]f32{rect.x+6, rect.y+2}, search_font_size, 2.0, SELECTED_COLOR)
+  rl.DrawTextEx(
+    font^,
+    prompt,
+    [2]f32{rect.x+6, rect.y+2},
+    search_font_size,
+    2.0,
+    SELECTED_COLOR
+  )
+
   if len(search.query) > 0 {
     query_s : cstring = nil
     query_r := search.query[:]
-    defer{
+
+    defer {
       if query_s != nil {
         delete(query_s)
       }
     }
 
-    // Truncate query if too long
-    for i := len(search.query); i >=  0 ; i -= 1 {
+    for i := len(search.query); i >= 0; i -= 1 {
       query := utf8.runes_to_string(query_r)
       query_c := strings.clone_to_cstring(query)
       query_size := rl.MeasureTextEx(font^, query_c, search_font_size, 2.0)
+
       if query_size.x + prompt_size.x <= box_width {
         query_s = strings.clone_to_cstring(query)
         delete(query)
         delete(query_c)
         break
       }
+
       query_r = search.query[:i]
       delete(query)
       delete(query_c)
