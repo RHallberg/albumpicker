@@ -40,7 +40,7 @@ draw_grid :: proc(window: ^Window, grid_data: ^Gui_Data) {
       }
       if selected.x == i32(col_ix) && selected.y == i32(row_ix) {
         border_color = SELECTED_COLOR
-        rl.DrawRectangleRec(rect_inner, rl.Fade(SELECTED_COLOR, 0.35))
+        rl.DrawRectangleRec(rect_inner, rl.Fade(SELECTED_COLOR, 0.5))
       } else {
         border_color = BORDER_COLOR
       }
@@ -110,7 +110,7 @@ draw_box_text_content :: proc(artist: string, album_name: string, box: rl.Rectan
   total_lines := len(artist_lines) + 1 + len(album_lines)
   total_height := f32(total_lines) * line_height + f32(total_lines - 1) * line_gap
 
-  rl.DrawRectangleRec(box, rl.Fade(BOX_TEXT_BACKGROUND_COLOR, 0.7))
+  rl.DrawRectangleRec(box, rl.Fade(BOX_TEXT_BACKGROUND_COLOR, 0.8))
 
   text_y := box.y + (box.height - total_height) / 2
 
@@ -119,12 +119,12 @@ draw_box_text_content :: proc(artist: string, album_name: string, box: rl.Rectan
     defer delete(cs)
     measure := rl.MeasureTextEx(font^, cs, font_size, spacing)
     x := box.x + (box.width - measure.x) / 2
-    rl.DrawTextEx(font^, cs, [2]f32{x, text_y}, font_size, spacing, FONT_COLOR)
+    rl.DrawTextEx(font^, cs, [2]f32{x, text_y}, font_size, spacing, ALBUM_FONT_COLOR)
     text_y += line_height + line_gap
   }
 
   dash_x := box.x + (box.width - dash_measure.x) / 2
-  rl.DrawTextEx(font^, "-", [2]f32{dash_x, text_y}, font_size, spacing, FONT_COLOR)
+  rl.DrawTextEx(font^, "-", [2]f32{dash_x, text_y}, font_size, spacing, ALBUM_FONT_COLOR)
   text_y += line_height + line_gap
 
   for line in album_lines {
@@ -132,7 +132,7 @@ draw_box_text_content :: proc(artist: string, album_name: string, box: rl.Rectan
     defer delete(cs)
     measure := rl.MeasureTextEx(font^, cs, font_size, spacing)
     x := box.x + (box.width - measure.x) / 2
-    rl.DrawTextEx(font^, cs, [2]f32{x, text_y}, font_size, spacing, FONT_COLOR)
+    rl.DrawTextEx(font^, cs, [2]f32{x, text_y}, font_size, spacing, ALBUM_FONT_COLOR)
     text_y += line_height + line_gap
   }
 }
@@ -142,9 +142,9 @@ draw_search_box :: proc(window: ^Window, grid_data: ^Gui_Data) {
   font := grid_data.font_large
   search_font_size : f32 = FONT_SIZE * 2
   box_height : f32 = search_font_size + 4
-  box_width : f32 = f32(window.width)
-  box_y : f32 = 0
-  box_x : f32 = 0
+  box_width : f32 = f32(window.width) / 1.5
+  box_y : f32 = f32(window.height)/3 - box_height/2
+  box_x : f32 = f32(window.width) / 6.0
   rect := rl.Rectangle{box_x, box_y, box_width, box_height}
   border_rect := rl.Rectangle{
     box_x - BORDER_THICKNESS,
@@ -153,7 +153,7 @@ draw_search_box :: proc(window: ^Window, grid_data: ^Gui_Data) {
     box_height + BORDER_THICKNESS
   }
 
-  rl.DrawRectangleRec(rect, rl.Fade(SEARCH_BOX_BACKGROUND_COLOR, 0.8))
+  rl.DrawRectangleRec(rect, SEARCH_BOX_BACKGROUND_COLOR)
   rl.DrawRectangleLinesEx(border_rect, BORDER_THICKNESS, SELECTED_COLOR)
 
   prompt : cstring = "SEARCH:"
