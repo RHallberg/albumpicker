@@ -59,7 +59,6 @@ UserAction :: enum {
   DECREASE_COLS,
 }
 
-
 keybindings := []Keybind{
 // shift  ctrl   rl.KeyboardKey         action            arg
   {false, false, rl.KeyboardKey.Q,      .EXIT,            nil},
