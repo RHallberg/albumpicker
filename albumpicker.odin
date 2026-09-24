@@ -535,6 +535,9 @@ main :: proc() {
 
       rl.ClearBackground(rl.RAYWHITE)
       draw_grid(&window, &grid_data)
+      if(grid_data.show_songs){
+        draw_songs_window(&window, &grid_data)
+      }
       if(grid_data.search_state.search_mode){
         draw_search_box(&window, &grid_data)
       }

@@ -2,6 +2,7 @@ package albumpicker
 import rl  "vendor:raylib"
 import "core:strings"
 import "core:unicode/utf8"
+import "core:fmt"
 
 draw_grid :: proc(window: ^Window, grid_data: ^Gui_Data) {
   selected := grid_data.selected
@@ -216,6 +217,170 @@ draw_search_box :: proc(window: ^Window, grid_data: ^Gui_Data) {
       [2]f32{rect.x+prompt_size.x, rect.y+2},
       search_font_size,
       2.0,
+      FONT_COLOR
+    )
+  }
+}
+
+draw_songs_window :: proc(window: ^Window, grid_data: ^Gui_Data) {
+  uri, ok := get_selected_album_uri(grid_data)
+  if !ok {
+    return
+  }
+
+  album := grid_data.albums[uri]
+  font := grid_data.font
+  font_size := f32(FONT_SIZE)
+  spacing : f32 = 2.0
+
+  box_width : f32 = f32(window.width) / 1.5
+  box_x : f32 = f32(window.width) / 6.0
+  box_height : f32 = f32(window.height) * 0.8
+  box_y : f32 = (f32(window.height) - box_height) / 2
+
+  rect := rl.Rectangle{box_x, box_y, box_width, box_height}
+  border_rect := rl.Rectangle{
+    box_x - BORDER_THICKNESS,
+    box_y - BORDER_THICKNESS,
+    box_width + BORDER_THICKNESS * 2,
+    box_height + BORDER_THICKNESS * 2
+  }
+
+  roundness : f32 = 0.05
+  segments : i32 = 16
+
+  rl.DrawRectangleRounded(
+    border_rect,
+    roundness,
+    segments,
+    SELECTED_COLOR
+  )
+
+  rl.DrawRectangleRounded(
+    rect,
+    roundness,
+    segments,
+    SEARCH_BOX_BACKGROUND_COLOR
+  )
+
+  padding : f32 = 12
+  header_height := font_size + padding
+
+  header_text := fmt.aprintf("%s - %s", album.artist, album.name)
+  header_cs := strings.clone_to_cstring(header_text)
+  delete(header_text)
+  defer delete(header_cs)
+
+  rl.DrawTextEx(
+    font^,
+    header_cs,
+    [2]f32{rect.x + padding, rect.y + padding/2},
+    font_size,
+    spacing,
+    SELECTED_COLOR
+  )
+
+  rl.DrawLineEx(
+    [2]f32{rect.x + padding, rect.y + header_height},
+    [2]f32{rect.x + rect.width - padding, rect.y + header_height},
+    BORDER_THICKNESS,
+    BORDER_COLOR
+  )
+
+  list_y := rect.y + header_height + padding
+  list_height := rect.height - header_height - padding * 2
+  row_height := font_size + padding/2
+
+  song_count := len(album.songs)
+  if song_count == 0 {
+    empty_text : cstring = "No songs"
+    empty_size := rl.MeasureTextEx(font^, empty_text, font_size, spacing)
+    rl.DrawTextEx(
+      font^,
+      empty_text,
+      [2]f32{rect.x + (rect.width - empty_size.x)/2, list_y},
+      font_size,
+      spacing,
+      FONT_COLOR
+    )
+    return
+  }
+
+  visible_rows := int(list_height / row_height)
+  if visible_rows < 1 {
+    visible_rows = 1
+  }
+
+  song_index := grid_data.song_index
+  if song_index >= song_count {
+    song_index = song_count - 1
+  }
+  page := song_index / visible_rows
+  page_start := page * visible_rows
+  page_end := page_start + visible_rows
+  if page_end > song_count {
+    page_end = song_count
+  }
+
+  row_y := list_y
+  for i := page_start; i < page_end; i += 1 {
+    song := album.songs[i]
+    row_rect := rl.Rectangle{rect.x + padding/2, row_y, rect.width - padding, row_height}
+
+    if i == song_index {
+      rl.DrawRectangleRec(row_rect, rl.Fade(SELECTED_COLOR, 0.5))
+    }
+
+    duration_min := song.duration / 60
+    duration_sec := song.duration % 60
+    duration_text := fmt.aprintf("%d:%02d", duration_min, duration_sec)
+    duration_cs := strings.clone_to_cstring(duration_text)
+    delete(duration_text)
+    defer delete(duration_cs)
+    duration_size := rl.MeasureTextEx(font^, duration_cs, font_size, spacing)
+
+    line_text := fmt.aprintf("%s. %s", song.track, song.title)
+    line_cs := strings.clone_to_cstring(line_text)
+    delete(line_text)
+    defer delete(line_cs)
+
+    text_y := row_y + (row_height - font_size)/2
+
+    rl.DrawTextEx(
+      font^,
+      line_cs,
+      [2]f32{row_rect.x + padding/2, text_y},
+      font_size,
+      spacing,
+      FONT_COLOR
+    )
+
+    rl.DrawTextEx(
+      font^,
+      duration_cs,
+      [2]f32{row_rect.x + row_rect.width - duration_size.x - padding/2, text_y},
+      font_size,
+      spacing,
+      FONT_COLOR
+    )
+
+    row_y += row_height
+  }
+
+  if song_count > visible_rows {
+    total_pages := (song_count + visible_rows - 1) / visible_rows
+    page_text := fmt.aprintf("Page %d/%d", page + 1, total_pages)
+    page_cs := strings.clone_to_cstring(page_text)
+    delete(page_text)
+    defer delete(page_cs)
+    page_size := rl.MeasureTextEx(font^, page_cs, font_size, spacing)
+
+    rl.DrawTextEx(
+      font^,
+      page_cs,
+      [2]f32{rect.x + rect.width - page_size.x - padding, rect.y + rect.height - page_size.y - padding/2},
+      font_size,
+      spacing,
       FONT_COLOR
     )
   }
