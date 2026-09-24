@@ -291,7 +291,7 @@ main :: proc() {
     }
 
     // Setup: Initialize the raylib window and context
-    window := Window{"albumpicker", 1000, 1000, 144, rl.ConfigFlags{.WINDOW_RESIZABLE}}
+    window := Window{"albumpicker", 1000, 1000, 144, rl.ConfigFlags{.WINDOW_RESIZABLE, .MSAA_4X_HINT}}
 
     rl.SetTraceLogLevel(rl.TraceLogLevel.NONE)
     rl.SetConfigFlags(window.control_flags)
