@@ -390,7 +390,13 @@ main :: proc() {
 
           switch kb.action {
           case .EXIT:
-                should_exit = true
+              if grid_data.show_songs {
+                grid_data.song_index = 0
+                grid_data.song_max_index = 0
+                grid_data.show_songs = false
+                continue
+              }
+              should_exit = true
           case .ADD:
               uri, ok := get_selected_album_uri(&grid_data)
               if !ok {
