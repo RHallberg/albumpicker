@@ -36,8 +36,8 @@ Keybind :: struct {
 
 UserAction :: enum {
   EXIT,
-  ADD_ALBUM,
-  ENQUEUE_ALBUM,
+  ADD,
+  ENQUEUE,
   SHOW_SONGS,
   RESET_GRID,
   RANDOMIZE_GRID,
@@ -59,10 +59,10 @@ keybindings := []Keybind{
 // shift  ctrl   rl.KeyboardKey         action
   {false, false, rl.KeyboardKey.Q,      .EXIT},
   {false, false, rl.KeyboardKey.ESCAPE, .EXIT},
-  {false, false, rl.KeyboardKey.ENTER,  .ADD_ALBUM},
-  {false, true,  rl.KeyboardKey.ENTER,  .ENQUEUE_ALBUM},
-  {false, false, rl.KeyboardKey.SPACE,  .ADD_ALBUM},
-  {false, true,  rl.KeyboardKey.SPACE,  .ENQUEUE_ALBUM},
+  {false, false, rl.KeyboardKey.ENTER,  .ADD},
+  {false, true,  rl.KeyboardKey.ENTER,  .ENQUEUE},
+  {false, false, rl.KeyboardKey.SPACE,  .ADD},
+  {false, true,  rl.KeyboardKey.SPACE,  .ENQUEUE},
   {false, false, rl.KeyboardKey.E,      .SHOW_SONGS},
   {false, false, rl.KeyboardKey.C,      .RESET_GRID},
   {false, true,  rl.KeyboardKey.F,      .SEARCH},

@@ -378,10 +378,10 @@ draw_songs_window :: proc(window: ^Window, grid_data: ^Gui_Data) {
     rl.DrawTextEx(
       font^,
       page_cs,
-      [2]f32{rect.x + rect.width - page_size.x - padding, rect.y + rect.height - page_size.y - padding/2},
+      [2]f32{rect.x + rect.width - page_size.x - padding, rect.y + rect.height - page_size.y},
       font_size,
       spacing,
-      FONT_COLOR
+      SELECTED_COLOR
     )
   }
 }

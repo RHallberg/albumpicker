@@ -391,16 +391,22 @@ main :: proc() {
           switch kb.action {
           case .EXIT:
                 should_exit = true
-          case .ADD_ALBUM:
+          case .ADD:
               uri, ok := get_selected_album_uri(&grid_data)
               if !ok {
                 continue
               }
+              if(grid_data.show_songs){
+                uri = grid_data.albums[uri].songs[grid_data.song_index].uri
+              }
               enqueue_uri(conn, uri, false)
-          case .ENQUEUE_ALBUM:
+          case .ENQUEUE:
               uri, ok := get_selected_album_uri(&grid_data)
               if !ok {
                 continue
+              }
+              if(grid_data.show_songs){
+                uri = grid_data.albums[uri].songs[grid_data.song_index].uri
               }
               enqueue_uri(conn, uri, true)
           case .SHOW_SONGS:
