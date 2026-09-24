@@ -111,47 +111,75 @@ handle_search :: proc(grid_data: ^Gui_Data) {
 }
 
 Direction :: enum{Up, Right, Down, Left}
-move_selected :: proc(direction: Direction, grid_data: ^Gui_Data) {
-
-  if grid_data.show_songs {
-    if direction == .Up && grid_data.song_index > 0 {
-      grid_data.song_index -= 1
-    } else if direction == .Down && grid_data.song_index < grid_data.song_max_index {
-      grid_data.song_index += 1
+move_selected :: proc(direction: Direction, steps: int, grid_data: ^Gui_Data) {
+    if steps <= 0 {
+        return
     }
-    return
-  }
 
-  selected := grid_data.selected
-  new_x := selected.x
-  new_y := selected.y
-  new_offset := grid_data.offset
-  switch direction {
-    case .Up:
-      if selected.y -1 < 0 {
-        if grid_data.offset >= grid_data.rows + 1{
-         new_offset -= grid_data.cols
+    if grid_data.show_songs {
+      #partial switch direction {
+        case .Up:
+            grid_data.song_index = max(0, grid_data.song_index - steps)
+
+        case .Down:
+            grid_data.song_index = min(
+                grid_data.song_max_index,
+                grid_data.song_index + steps,
+            )
         }
-        break
-      }
-      new_y -= 1
+        return
+    }
+
+    selected := grid_data.selected
+    new_x := selected.x
+    new_y := selected.y
+    new_offset := grid_data.offset
+
+    switch direction {
+    case .Up:
+        new_y -= i32(steps)
+
+        if new_y < 0 {
+            rows_up := (-new_y + i32(grid_data.rows) - 1) / i32(grid_data.rows)
+            new_offset -= int(rows_up) * grid_data.cols
+            new_y += rows_up * i32(grid_data.rows)
+
+            if new_offset < 0 {
+                new_offset = 0
+                new_y = 0
+            }
+        }
+
     case .Down:
-      if grid_data.selected.y + 1 >= i32(grid_data.rows) && grid_data.offset + (grid_data.cols) * (grid_data.rows) <= len(grid_data.uris) {
-        new_offset += grid_data.cols
-        break
-      }
-      new_y += 1
+        new_y += i32(steps)
+
+        rows := i32(grid_data.rows)
+        if new_y >= rows {
+            rows_down := new_y / rows
+            new_offset += int(rows_down) * grid_data.cols
+            new_y %= rows
+        }
+
     case .Left:
-      new_x = (selected.x - 1 + i32(grid_data.cols)) % i32(grid_data.cols)
+        new_x -= i32(steps)
+
+        if new_x < 0 {
+            new_x = (new_x % i32(grid_data.cols) + i32(grid_data.cols)) % i32(grid_data.cols)
+        }
+
     case .Right:
-      new_x = (selected.x + 1) % i32(grid_data.cols)
-  }
-  if (int(new_y) * grid_data.cols) + int(new_x) + new_offset >= len(grid_data.uris) {
-    return
-  }
-  grid_data.offset = new_offset
-  selected.x = new_x
-  selected.y = new_y
+        new_x = (new_x + i32(steps)) % i32(grid_data.cols)
+    }
+
+    index := int(new_y) * grid_data.cols + int(new_x) + new_offset
+
+    if index >= len(grid_data.uris) {
+        return
+    }
+
+    grid_data.offset = new_offset
+    selected.x = new_x
+    selected.y = new_y
 }
 
 get_selected_album_uri :: proc (grid_data: ^Gui_Data) -> (uri: string, ok: bool){
@@ -454,13 +482,13 @@ main :: proc() {
           case .EXIT_SEARCH:
             continue
           case .MOVE_UP:
-            move_selected(.Up, &grid_data)
+            move_selected(.Up, kb.arg.(int), &grid_data)
           case .MOVE_DOWN:
-            move_selected(.Down, &grid_data)
+            move_selected(.Down, kb.arg.(int), &grid_data)
           case .MOVE_LEFT:
-            move_selected(.Left, &grid_data)
+            move_selected(.Left, kb.arg.(int), &grid_data)
           case .MOVE_RIGHT:
-            move_selected(.Right, &grid_data)
+            move_selected(.Right, kb.arg.(int), &grid_data)
           case .INCREASE_ROWS:
             if(grid_data.rows < MAX_ROWS){
               grid_data.rows += 1

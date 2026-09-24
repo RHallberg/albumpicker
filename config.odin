@@ -27,11 +27,16 @@ MPD_PORT :: 6600
 // CTRL_KEY :: rl.KeyboardKey.LEFT_CONTROL
 CTRL_KEY :: rl.KeyboardKey.CAPS_LOCK
 
+Arg :: union {
+    int,
+    string,
+}
 Keybind :: struct {
   shift: bool,
   ctrl: bool,
   key: rl.KeyboardKey,
   action: UserAction,
+  arg: Arg
 }
 
 UserAction :: enum {
@@ -56,35 +61,37 @@ UserAction :: enum {
 
 
 keybindings := []Keybind{
-// shift  ctrl   rl.KeyboardKey         action
-  {false, false, rl.KeyboardKey.Q,      .EXIT},
-  {false, false, rl.KeyboardKey.ESCAPE, .EXIT},
-  {false, false, rl.KeyboardKey.ENTER,  .ADD},
-  {false, true,  rl.KeyboardKey.ENTER,  .ENQUEUE},
-  {false, false, rl.KeyboardKey.SPACE,  .ADD},
-  {false, true,  rl.KeyboardKey.SPACE,  .ENQUEUE},
-  {false, false, rl.KeyboardKey.E,      .SHOW_SONGS},
-  {false, false, rl.KeyboardKey.C,      .RESET_GRID},
-  {false, true,  rl.KeyboardKey.F,      .SEARCH},
-  {false, false, rl.KeyboardKey.TAB,    .SORT_GRID},
-  {false, false, rl.KeyboardKey.R,      .RANDOMIZE_GRID},
-  {false, true,  rl.KeyboardKey.F,      .EXIT_SEARCH},
-  {false, false, rl.KeyboardKey.ENTER,  .EXIT_SEARCH},
-  {false, false, rl.KeyboardKey.ESCAPE, .EXIT_SEARCH},
-  {false, false, rl.KeyboardKey.K,      .MOVE_UP},
-  {false, false, rl.KeyboardKey.UP,     .MOVE_UP},
-  {false, false, rl.KeyboardKey.W,      .MOVE_UP},
-  {false, false, rl.KeyboardKey.J,      .MOVE_DOWN},
-  {false, false, rl.KeyboardKey.S,      .MOVE_DOWN},
-  {false, false, rl.KeyboardKey.DOWN,   .MOVE_DOWN},
-  {false, false, rl.KeyboardKey.H,      .MOVE_LEFT},
-  {false, false, rl.KeyboardKey.A,      .MOVE_LEFT},
-  {false, false, rl.KeyboardKey.LEFT,   .MOVE_LEFT},
-  {false, false, rl.KeyboardKey.L,      .MOVE_RIGHT},
-  {false, false, rl.KeyboardKey.D,      .MOVE_RIGHT},
-  {false, false, rl.KeyboardKey.RIGHT,  .MOVE_RIGHT},
-  {true, false,  rl.KeyboardKey.RIGHT,  .INCREASE_COLS},
-  {true, false,  rl.KeyboardKey.LEFT,   .DECREASE_COLS},
-  {true, false,  rl.KeyboardKey.UP,     .DECREASE_ROWS},
-  {true, false,  rl.KeyboardKey.DOWN,   .INCREASE_ROWS},
+// shift  ctrl   rl.KeyboardKey         action            arg
+  {false, false, rl.KeyboardKey.Q,      .EXIT,            nil},
+  {false, false, rl.KeyboardKey.ESCAPE, .EXIT,            nil},
+  {false, false, rl.KeyboardKey.ENTER,  .ADD,             nil},
+  {false, true,  rl.KeyboardKey.ENTER,  .ENQUEUE,         nil},
+  {false, false, rl.KeyboardKey.SPACE,  .ADD,             nil},
+  {false, true,  rl.KeyboardKey.SPACE,  .ENQUEUE,         nil},
+  {false, false, rl.KeyboardKey.E,      .SHOW_SONGS,      nil},
+  {false, false, rl.KeyboardKey.C,      .RESET_GRID,      nil},
+  {false, true,  rl.KeyboardKey.F,      .SEARCH,          nil},
+  {false, false, rl.KeyboardKey.TAB,    .SORT_GRID,       nil},
+  {false, false, rl.KeyboardKey.R,      .RANDOMIZE_GRID,  nil},
+  {false, true,  rl.KeyboardKey.F,      .EXIT_SEARCH,     nil},
+  {false, false, rl.KeyboardKey.ENTER,  .EXIT_SEARCH,     nil},
+  {false, false, rl.KeyboardKey.ESCAPE, .EXIT_SEARCH,     nil},
+  {false, false, rl.KeyboardKey.K,      .MOVE_UP,         1},
+  {false, true,  rl.KeyboardKey.K,      .MOVE_UP,         GRID_ROWS},
+  {false, false, rl.KeyboardKey.UP,     .MOVE_UP,         1},
+  {false, false, rl.KeyboardKey.W,      .MOVE_UP,         1},
+  {false, false, rl.KeyboardKey.J,      .MOVE_DOWN,       1},
+  {false, true,  rl.KeyboardKey.J,      .MOVE_DOWN,       GRID_ROWS},
+  {false, false, rl.KeyboardKey.S,      .MOVE_DOWN,       1},
+  {false, false, rl.KeyboardKey.DOWN,   .MOVE_DOWN,       1},
+  {false, false, rl.KeyboardKey.H,      .MOVE_LEFT,       1},
+  {false, false, rl.KeyboardKey.A,      .MOVE_LEFT,       1},
+  {false, false, rl.KeyboardKey.LEFT,   .MOVE_LEFT,       1},
+  {false, false, rl.KeyboardKey.L,      .MOVE_RIGHT,      1},
+  {false, false, rl.KeyboardKey.D,      .MOVE_RIGHT,      1},
+  {false, false, rl.KeyboardKey.RIGHT,  .MOVE_RIGHT,      1},
+  {true, false,  rl.KeyboardKey.RIGHT,  .INCREASE_COLS,   nil},
+  {true, false,  rl.KeyboardKey.LEFT,   .DECREASE_COLS,   nil},
+  {true, false,  rl.KeyboardKey.UP,     .DECREASE_ROWS,   nil},
+  {true, false,  rl.KeyboardKey.DOWN,   .INCREASE_ROWS,   nil},
 }
