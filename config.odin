@@ -2,8 +2,8 @@ package albumpicker
 import rl  "vendor:raylib"
 
 // Layout
-GRID_ROWS :: 4
-GRID_COLS :: 4
+GRID_ROWS :: 6
+GRID_COLS :: 7
 FONT_SIZE :: 24
 BORDER_THICKNESS :: 2
 TEXT_PADDING :: 8
@@ -38,6 +38,7 @@ UserAction :: enum {
   EXIT,
   ADD_ALBUM,
   ENQUEUE_ALBUM,
+  SHOW_SONGS,
   RESET_GRID,
   RANDOMIZE_GRID,
   SORT_GRID,
@@ -62,6 +63,7 @@ keybindings := []Keybind{
   {false, true,  rl.KeyboardKey.ENTER,  .ENQUEUE_ALBUM},
   {false, false, rl.KeyboardKey.SPACE,  .ADD_ALBUM},
   {false, true,  rl.KeyboardKey.SPACE,  .ENQUEUE_ALBUM},
+  {false, false, rl.KeyboardKey.E,      .SHOW_SONGS},
   {false, false, rl.KeyboardKey.C,      .RESET_GRID},
   {false, true,  rl.KeyboardKey.F,      .SEARCH},
   {false, false, rl.KeyboardKey.TAB,    .SORT_GRID},

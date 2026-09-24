@@ -29,6 +29,9 @@ Gui_Data :: struct {
   albumart_cache: ^Albumart_Cache,
   selected: ^Box,
   search_state: ^Search_State,
+  show_songs : bool,
+  song_index : int,
+  song_max_index : int,
   font: ^rl.Font,
   font_large: ^rl.Font,
   render_text: bool,
@@ -109,6 +112,16 @@ handle_search :: proc(grid_data: ^Gui_Data) {
 
 Direction :: enum{Up, Right, Down, Left}
 move_selected :: proc(direction: Direction, grid_data: ^Gui_Data) {
+
+  if grid_data.show_songs {
+    if direction == .Up && grid_data.song_index > 0 {
+      grid_data.song_index -= 1
+    } else if direction == .Down && grid_data.song_index < grid_data.song_max_index {
+      grid_data.song_index += 1
+    }
+    return
+  }
+
   selected := grid_data.selected
   new_x := selected.x
   new_y := selected.y
@@ -141,13 +154,16 @@ move_selected :: proc(direction: Direction, grid_data: ^Gui_Data) {
   selected.y = new_y
 }
 
-enqueue_album :: proc (conn: ^mpd.MPD_Connection, grid_data: ^Gui_Data, append_to_queue: bool) {
+get_selected_album_uri :: proc (grid_data: ^Gui_Data) -> (uri: string, ok: bool){
   selected := grid_data.selected
   position := (int(selected.y) * grid_data.cols) + int(selected.x) + grid_data.offset
   if position >= len(grid_data.uris) {
-    return
+    return "", false
   }
-  uri := grid_data.uris[position]
+  return grid_data.uris[position], true
+}
+
+enqueue_uri :: proc (conn: ^mpd.MPD_Connection, uri: string, append_to_queue: bool) {
   c_uri := strings.clone_to_cstring(uri)
   defer delete(c_uri)
 
@@ -299,6 +315,9 @@ main :: proc() {
       albumart = &albumart_m,
       albumart_cache = &art_cache,
       search_state = &search_state,
+      show_songs = false,
+      song_index = 0,
+      song_max_index = 0,
       selected = &selected,
       font = &font,
       font_large = &font_large,
@@ -373,9 +392,32 @@ main :: proc() {
           case .EXIT:
                 should_exit = true
           case .ADD_ALBUM:
-              enqueue_album(conn, &grid_data, false)
+              uri, ok := get_selected_album_uri(&grid_data)
+              if !ok {
+                continue
+              }
+              enqueue_uri(conn, uri, false)
           case .ENQUEUE_ALBUM:
-              enqueue_album(conn, &grid_data, true)
+              uri, ok := get_selected_album_uri(&grid_data)
+              if !ok {
+                continue
+              }
+              enqueue_uri(conn, uri, true)
+          case .SHOW_SONGS:
+              if grid_data.show_songs {
+                grid_data.song_index = 0
+                grid_data.song_max_index = 0
+                grid_data.show_songs = false
+                continue
+              }
+              uri, ok := get_selected_album_uri(&grid_data)
+              if !ok {
+                continue
+              }
+              grid_data.show_songs = true
+              grid_data.song_index = 0
+              grid_data.song_max_index = len(grid_data.albums[uri].songs) - 1
+
           case .RESET_GRID:
             grid_data.search_state.index = 0
             if grid_data.search_state.query != nil {
