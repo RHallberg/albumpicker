@@ -94,6 +94,11 @@ foreign libmpdclient {
       path: cstring
     ) -> bool ---
 
+    mpd_send_list_meta :: proc (
+      conn: ^MPD_Connection,
+      path: cstring
+    ) -> bool ---
+
     mpd_recv_entity :: proc (
       conn: ^MPD_Connection
     ) -> ^MPD_Entity ---
@@ -119,6 +124,10 @@ foreign libmpdclient {
     mpd_song_get_uri :: proc (
       song: ^MPD_Song
     ) -> cstring ---
+
+    mpd_song_get_duration :: proc (
+      song: ^MPD_Song
+    ) -> c.uint ---
 
     mpd_song_free :: proc (
       song: ^MPD_Song

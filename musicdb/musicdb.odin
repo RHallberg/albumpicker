@@ -15,6 +15,14 @@ Album :: struct {
   artist_lower : string,
   search_string : string,
   full_uri : string,
+  songs: [dynamic]Song,
+}
+
+Song :: struct {
+  title : string,
+  track : string,
+  duration : uint,
+  uri : string,
 }
 Album_Map :: map[string]Album
 
@@ -32,12 +40,19 @@ db_free :: proc(db: ^Album_Map) {
       delete(album.artist_lower)
       delete(album.full_uri)
       delete(album.search_string)
+      for song in album.songs {
+        delete(song.title)
+        delete(song.track)
+        delete(song.uri)
+      }
+      delete(album.songs)
   }
   delete(db^)
 }
 
 add_song :: proc(db: ^Album_Map, song: ^mpd.MPD_Song) {
-    uri := strings.clone_from_cstring(mpd.mpd_song_get_uri(song))
+    c_uri := mpd.mpd_song_get_uri(song)
+    uri := strings.clone_from_cstring(c_uri)
 
     last := strings.last_index(uri, "/")
     if last == -1 {
@@ -45,6 +60,26 @@ add_song :: proc(db: ^Album_Map, song: ^mpd.MPD_Song) {
     }
 
     artist_album := strings.clone(uri[:last])
+
+    title := mpd.mpd_song_get_tag(song, mpd.MPD_Tag_Type.MPD_TAG_TITLE, 0)
+    title_s := strings.clone_from_cstring(title)
+    track := mpd.mpd_song_get_tag(song, mpd.MPD_Tag_Type.MPD_TAG_TRACK, 0)
+    track_s := strings.clone_from_cstring(track)
+    duration := uint(mpd.mpd_song_get_duration(song))
+
+    song_t := Song{
+      title = title_s,
+      track = track_s,
+      duration = duration,
+      uri = uri,
+    }
+
+    existing_album, ok := &db[artist_album]
+    if ok {
+        append(&existing_album.songs, song_t)
+        delete(artist_album)
+        return
+    }
 
     artist := mpd.mpd_song_get_tag(song, mpd.MPD_Tag_Type.MPD_TAG_ARTIST, 0)
     album_name := mpd.mpd_song_get_tag(song, mpd.MPD_Tag_Type.MPD_TAG_ALBUM, 0)
@@ -60,15 +95,11 @@ add_song :: proc(db: ^Album_Map, song: ^mpd.MPD_Song) {
             artist = artist_s,
             artist_lower = artist_lower,
             search_string = search_string,
-            full_uri = uri
+            full_uri = strings.clone(uri),
+            songs = make([dynamic]Song,0, 15),
     }
-
-    value, ok := &db[artist_album]
-    if ok {
-        value^ = album
-    } else {
-        db[artist_album] = album
-    }
+    append(&album.songs, song_t)
+    db[artist_album] = album
 }
 
 get_uris :: proc(db: ^Album_Map) -> []string {
