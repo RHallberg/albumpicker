@@ -19,8 +19,12 @@ SEARCH_BOX_BACKGROUND_COLOR :: rl.Color{204, 208, 218, 255}
 BOX_TEXT_BACKGROUND_COLOR :: rl.Color{69, 71, 90, 255}
 SELECTED_COLOR :: rl.Color{30, 102, 245, 255}
 
-MPD_HOST :: "localhost"
-MPD_PORT :: 6600
+// MPD_HOST : cstring = "localhost"
+// MPD_PORT :: 6600
+
+// Using NULL as host makes libmpdclient use a Unix domain socket
+MPD_HOST : cstring = nil
+MPD_PORT :: 0
 
 // Apparently raylib doesn't recognize setxkbmap swapcaps
 // Uncomment to use the normal left control
